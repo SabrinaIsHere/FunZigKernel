@@ -1,4 +1,5 @@
-const console = @import("console.zig");
+const IO = @import("io/io.zig");
+const Console = IO.Console;
 
 const MB_HEADER_MAGIC = 0x1BADB002;
 const MB_FLAG_ALIGN = 1 << 0;
@@ -49,9 +50,9 @@ export fn _start() callconv(.naked) noreturn {
 // We use noinline to make sure it don't get inlined by compiler
 noinline fn kmain() callconv(.c) noreturn {
     // Initialize our VGA driver
-    console.init();
+    Console.init();
     // Printing string
-    console.print("Hello {s} kernel!", .{"zig"});
+    Console.print("Hello {s} kernel!", .{"zig"});
     // Loop forever as there is nothing to do
     while (true) {
         asm volatile ("hlt");

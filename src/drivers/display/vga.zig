@@ -1,5 +1,4 @@
 const std = @import("std");
-const console = @import("console.zig");
 
 const VGA_WIDTH = 80;
 const VGA_HEIGHT = 25;
@@ -140,16 +139,15 @@ pub fn writer(buffer: []u8) std.Io.Writer {
     };
 }
 
-/// Print string to VGA
+/// Print a string as-is to vga
 pub fn printString(str: []const u8) void {
-    for (str) |char| {
-        printChar(char);
+    for (str) |c| {
+        printChar(c);
     }
 }
 
-/// Print with standard zig format to VGA
+/// Print with standard vga format to vga
 pub fn print(comptime fmt: []const u8, args: anytype) void {
     var w = writer(&.{});
     w.print(fmt, args) catch return;
 }
-

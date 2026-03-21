@@ -1,0 +1,1 @@
+Use zig build run to actually test the kernel, the bash stuff is for testing grub
