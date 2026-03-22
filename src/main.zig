@@ -52,7 +52,7 @@ noinline fn kmain() callconv(.c) noreturn {
     // Initialize our VGA driver
     Console.init();
     // Printing string
-    Console.print("Hello {s} kernel!", .{"zig"});
+    Console.print("Kernel loaded", .{});
     // Loop forever as there is nothing to do
     while (true) {
         asm volatile ("hlt");

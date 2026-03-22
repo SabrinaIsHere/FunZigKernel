@@ -63,10 +63,18 @@ pub fn printCharAt(char: u8, color: Color, x: usize, y: usize) void {
     g_buffer[index] = color.getVgaChar(char);
 }
 
-/// INFO: Scrolling is left as an exercise for the reader
+/// Automatically scrolls everything up when the bottom of the screen is reached
 fn checkAndScroll() void {
     if (g_row == VGA_HEIGHT) {
-        g_row = 0;
+        // Iterate through rows top to bottom and shift up
+        for (1..VGA_HEIGHT) |i| {
+            const curr_line = i * VGA_WIDTH;
+            @memcpy(g_buffer[curr_line - VGA_WIDTH .. curr_line], g_buffer[curr_line .. curr_line + VGA_WIDTH]);
+        }
+        // Delete last row
+        const blank = Color.getVgaChar(g_color, ' ');
+        @memset(g_buffer[(VGA_HEIGHT - 1) * VGA_WIDTH .. VGA_HEIGHT * VGA_WIDTH], blank);
+        g_row -= 1;
     }
 }
 
