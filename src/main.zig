@@ -1,5 +1,9 @@
+// I want to note that I've started and stopped a lot of OSDev projects, and with that in mind,
+// I'm documenting this one very heavily so it'll be easy to pick back up in a few months
+
 const IO = @import("io/io.zig");
 const Console = IO.Console;
+const Serial = @import("drivers/data/serial.zig");
 
 const MB_HEADER_MAGIC = 0x1BADB002;
 const MB_FLAG_ALIGN = 1 << 0;
@@ -49,10 +53,12 @@ export fn _start() callconv(.naked) noreturn {
 
 // We use noinline to make sure it don't get inlined by compiler
 noinline fn kmain() callconv(.c) noreturn {
-    // Initialize our VGA driver
+    // Initialize VGA and serial driver
     Console.init();
-    // Printing string
-    Console.print("Kernel loaded", .{});
+    Serial.init() catch Console.print("Serial port uninitialized\n", .{});
+
+    Console.print("Kernel loaded\n", .{});
+    Serial.printString("Test\n");
     // Loop forever as there is nothing to do
     while (true) {
         asm volatile ("hlt");
