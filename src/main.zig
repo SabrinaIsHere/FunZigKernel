@@ -55,10 +55,7 @@ export fn _start() callconv(.naked) noreturn {
 noinline fn kmain() callconv(.c) noreturn {
     // Initialize VGA and serial driver
     Console.init();
-    Serial.init() catch Console.print("Serial port uninitialized\n", .{});
-
     Console.print("Kernel loaded\n", .{});
-    Serial.printString("Test\n");
     // Loop forever as there is nothing to do
     while (true) {
         asm volatile ("hlt");
