@@ -10,6 +10,9 @@ if ! tmux has-session -t $SESSION 2>/dev/null; then
     
 	tmux new-window -n "Build" -t "$SESSION"
     tmux send-keys -t "$SESSION:1" "ls" C-m
+    
+	tmux new-window -n "Notes" -t "$SESSION"
+    tmux send-keys -t "$SESSION:2" "nvim $PROJECT/notes/architecture.md" C-m
 fi
 
 tmux attach-session -t "$SESSION_NAME:0"
