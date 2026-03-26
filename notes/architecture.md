@@ -1,3 +1,26 @@
+## Todo
+ - ~~VGA driver~~
+ - Serial driver
+    - ~~Blocking IO~~
+    - Interrupt IO
+ - Interrupts
+    - IDT
+ - Memory
+    - Memory map
+    - Dynamic allocation
+ - Command interpreter
+ - Module loading
+ - Processes
+    - Time sharing
+ - Message passing
+
+## Architecture
+The kernel leaves room for a future port to ARM or RISC-V, though that isn't likely any time soon
+
+### x86_64
+---
+#### Interrupts
+
 ## IO
 Namespace presenting a hardware agnostic IO interface
 
@@ -19,8 +42,4 @@ Scrolling pushes everything up one line and blanks out the very bottom
 ---
 
 #### Serial
-Allows some automated testing and a much more convenient debugging experience
-
-Notes
- - Needs initialization
- - Polls on everything for now but that'll get a touchup when I get around to interrupts
+Allows some automated testing and a much more convenient debugging experience. Currently polls on everything though it won't in the future.
