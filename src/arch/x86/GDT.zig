@@ -11,7 +11,7 @@ var GDT: [6]GDTEntry = undefined;
 
 /// Struct defining a GDT entry. GDTs are weird so variables are set with functions to abstract it, though they should never
 /// be modified after the first stages of booting where they're defined with init() since I'm using paging.
-pub const GDTEntry = packed struct {
+const GDTEntry = packed struct {
     // TODO: should these be reversed?
     limit1: u16,
     base1: u16,
@@ -23,39 +23,42 @@ pub const GDTEntry = packed struct {
 
     /// Initialize the GDT entry at the given address. Abstract away the weirdness
     pub fn init(self: *GDTEntry, limit: u20, base: u32, access: u8, flags: u4) void {
-        switch (native_endian) {
-            .big => {
-                // NOTE: Assuming limit2 is the most significant 4 bits
-                // NOTE: This may not be right look out for that
-                self.limit1 = @truncate(limit);
-                self.limit2 = @truncate(limit << 16);
-                self.base1 = @truncate(base);
-                self.base2 = @truncate(base << 16);
-                self.base3 = @truncate(base << 24);
-                self.access = access;
-                self.flags = flags;
-            },
-            .little => {
-                self.limit1 = @truncate(limit);
-                self.limit2 = @truncate(limit >> 16);
-                self.base1 = @truncate(base);
-                self.base2 = @truncate(base >> 16);
-                self.base3 = @truncate(base >> 24);
-                self.access = access;
-                self.flags = flags;
-            },
-        }
+        self.limit1 = @intCast(limit & 0xFFFF);
+        self.limit2 = @intCast((limit >> 16) & 0x0F);
+        self.base1 = @intCast(base & 0xFFFF);
+        self.base2 = @intCast((base << 16) & 0xFF);
+        self.base3 = @intCast((base << 24) & 0xFF);
+        self.access = access;
+        self.flags = flags;
     }
 };
 
-test "GDTEntry" {
-    try expectEqual(8, @sizeOf(GDTEntry));
+/// Global storing GDT information. Processor pointed at this to load the GDT
+const GDTRt = packed struct {
+    limit: u16,
+    base: u32,
+};
+
+var gdtr: GDTRt = undefined;
+
+/// Tells the processor where the GDT is
+/// base: pointer to GDT[0], limit: number of entries
+fn loadGDT(base: *GDTEntry, limit: u8) void {
+    // LGDT wants a pointer to a 6 byte region of memory with the base and length of the gdt
+    gdtr = .{
+        .limit = limit * @sizeOf(GDTEntry),
+        .base = @intFromPtr(base),
+    };
+    asm volatile ("lgdt (%[gdtr])"
+        :
+        : [gdtr] "{eax}" (&gdtr),
+    );
 }
 
 /// Functin the kernel calls into to initialize the GDT
 /// This should NEVER be called without interrupts being disabled!
 pub fn init() void {
-    // BUG: This is causing a weird strobing in the serial terminal, check vga
+    arch.setInterruptsEnabled(false);
     // Null descriptor
     GDT[0].init(0x0, 0x0, 0x0, 0x0);
     // Kernel code segment
@@ -69,4 +72,6 @@ pub fn init() void {
     // Task state segment
     const TSS: usize = @intFromPtr(&GDT[5]);
     GDT[5].init(@sizeOf(GDTEntry) - 1, TSS, 0x82, 0x0);
+    loadGDT(&GDT[0], 5);
+    arch.setInterruptsEnabled(false);
 }

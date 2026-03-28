@@ -4,9 +4,7 @@ const GDT = @import("GDT.zig");
 
 /// Initializes architecture specific things like the GDT and IDT
 pub fn init() void {
-    setInterruptsEnabled(false);
     GDT.init();
-    setInterruptsEnabled(true);
 }
 
 /// Wrapper for the x86 assembly instruction 'inb'
