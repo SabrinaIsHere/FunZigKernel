@@ -17,8 +17,8 @@ const SyncSerialPort = struct {
     port: u16,
     /// Initializes and tests this serial port using 8N1
     pub fn init(com: u16) !SyncSerialPort {
-        // TODO look into the default baud, this is a placeholder
-        // TODO hardware handshaking? if I ever need it
+        // TODO: look into the default baud, this is a placeholder
+        // TODO: hardware handshaking? if I ever need it
         var self = SyncSerialPort{
             .port = com,
         };
@@ -41,7 +41,7 @@ const SyncSerialPort = struct {
 
     /// Uses DLAB bit to set the divisor register and control the transmission rate
     pub fn setBaud(self: SyncSerialPort, divisor: u16) void {
-        // TODO Maybe I should save and restore port + 0 and port + 1? idk
+        // TODO: Maybe I should save and restore port + 0 and port + 1? idk
         // Set DLAB bit
         out(self.port + 3, @as(u8, 0b10000000));
         // Port + 0 = lsbyte
@@ -63,7 +63,7 @@ const SyncSerialPort = struct {
     /// Reads a byte from the serial port. Will time out if it waits longer than .5 seconds
     pub fn read(self: *volatile SyncSerialPort) !u8 {
         // Check the data ready field in line status
-        // TODO Proper timeout
+        // TODO: Proper timeout
 
         // Basic approximation of delta for now
         var lineStatus = in(u8, self.port + 5);
@@ -79,7 +79,7 @@ const SyncSerialPort = struct {
     /// Writes a byte to the serial port. Will time out if it waits longer than .5 seconds
     pub fn write(self: SyncSerialPort, char: u8) !void {
         // Check the transmitter holding register empty field in line status
-        // TODO Proper timeout
+        // TODO: Proper timeout
 
         // Basic approximation of delta for now
         var lineStatus = in(u8, self.port + 5);

@@ -4,6 +4,7 @@
 const IO = @import("io/io.zig");
 const Console = IO.Console;
 const Serial = @import("drivers/data/serial.zig");
+const arch = @import("arch/x86/arch.zig");
 
 const MB_HEADER_MAGIC = 0x1BADB002;
 const MB_FLAG_ALIGN = 1 << 0;
@@ -56,6 +57,8 @@ noinline fn kmain() callconv(.c) noreturn {
     // Initialize VGA and serial driver
     Console.init();
     Console.print("Kernel loaded\n", .{});
+    // Initialize architecture stuff
+    arch.init();
     // Loop forever as there is nothing to do
     while (true) {
         asm volatile ("hlt");

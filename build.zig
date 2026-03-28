@@ -31,7 +31,7 @@ pub fn build(b: *std.Build) !void {
         // zig fmt: off
         "qemu-system-x86_64",
         "-m", "1G",
-        "-serial", "stdio",
+        "-nographic",
     });
     // zig fmt: on
     qemu_cmd.addArg("-kernel");
@@ -47,4 +47,3 @@ pub fn build(b: *std.Build) !void {
     const run_step = b.step("run", "Run kernel with qemu");
     run_step.dependOn(&run_cmd.step);
 }
-
