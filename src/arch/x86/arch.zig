@@ -1,6 +1,8 @@
 //! Got this from https://github.com/ZystemOS/pluto/blob/develop/src/kernel/arch/x86/arch.zig
 
 const GDT = @import("GDT.zig");
+const IO = @import("../../io/io.zig");
+const Console = IO.Console;
 
 /// Initializes architecture specific things like the GDT and IDT
 pub fn init() void {
@@ -54,4 +56,9 @@ pub fn setInterruptsEnabled(enabled: bool) void {
         true => asm volatile ("sti"),
         false => asm volatile ("cli"),
     }
+}
+
+// NOTE: Make this a real kpanic lol, and probably spin it off into it's own file
+pub fn k_panic(msg: []const u8) void {
+    Console.print(msg, .{});
 }
