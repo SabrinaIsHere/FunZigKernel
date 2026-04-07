@@ -74,5 +74,5 @@ pub fn init() void {
     const TSS: usize = @intFromPtr(&GDT[TSS_SEGMENT]);
     GDT[TSS_SEGMENT].init(@sizeOf(GDTEntry) - 1, TSS, 0x82, 0x0);
     loadGDT(&GDT[0], 5);
-    arch.setInterruptsEnabled(false);
+    arch.setInterruptsEnabled(true);
 }

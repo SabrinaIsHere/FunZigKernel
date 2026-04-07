@@ -76,6 +76,7 @@ fn genISR(comptime vector: usize) Idt.InterruptHandler {
             }
             // Push the vector
             asm volatile (
+                \\movl $16, %%edx
                 \\pushl %[vector]
                 :
                 : [vector] "n" (vector),
@@ -91,17 +92,23 @@ pub fn init() void {
     // Define defaults
     // Define the 32 exceptions
     // 22-31 are reserved
-    inline for (0..22) |i| {
+    inline for (0..32) |i| {
         Idt.IDT[i].defineTrapGate(genISR(i), Gdt.K_CODE_SEGMENT, 1, Idt.PRIV_K);
     }
     // Define interrupts
     inline for (32..Idt.IDTLength) |i| {
         Idt.IDT[i].defineInterruptGate(genISR(i), Gdt.K_CODE_SEGMENT, 1, Idt.PRIV_K);
     }
+    Console.print("Size: {any}\n", .{@sizeOf(Idt.IDTEntry)});
+    for (0..Idt.IDTLength) |i| {
+        Console.print("IDT Offset: 0x{X}\n", .{@intFromPtr(&Idt.IDT[i])});
+    }
+    Console.print("Interrupts Enabled\n", .{});
+    asm volatile ("sti");
 }
 
 pub fn runtimeTests() void {
     Console.print("Interrupt Test: \n", .{});
-    asm volatile ("int $0x0");
+    asm volatile ("int $5");
     Console.print("Post Interrupt Test: \n", .{});
 }

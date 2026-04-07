@@ -1,11 +1,17 @@
 //! https://wiki.osdev.org/Interrupt_Descriptor_Table
 //! https://github.com/ZystemOS/pluto/blob/develop/src/kernel/arch/x86/idt.zig
 
+const IO = @import("../../io/io.zig");
+const Console = IO.Console;
+const std = @import("std");
+const expectEqual = std.testing.expectEqual;
+
 pub const InterruptHandler = fn () callconv(.naked) void;
 
 /// Defines an entry in the interrupt descriptor table
 /// Always 8 bytes long
-const IDTEntry = packed struct {
+/// TODO: Mark this private
+pub const IDTEntry = packed struct {
     /// Procedure entry
     offset_lower: u16,
     /// GDT segment
@@ -78,7 +84,7 @@ const IDTDescriptor = packed struct {
 };
 /// Actual memory pointed to by the IDTR
 var idtr = IDTDescriptor{
-    .size = IDTLength,
+    .size = IDTLength - 1 * @sizeOf(IDTEntry),
     .offset = undefined,
 };
 
@@ -89,17 +95,27 @@ pub const PRIV_U = 0x2;
 
 /// Tells the processor where the IDT is and it's length
 fn loadIDT() void {
-    idtr.offset = @intFromPtr(&IDT);
+    idtr.offset = @intFromPtr(&IDT[0]);
     asm volatile ("lidt (%[idtr])"
         :
         : [idtr] "{eax}" (&idtr),
     );
 }
 
+/// sidt gets the data in the IDTR
+/// NOTE: Pass back a struct
+fn storeIDT() void {}
+
 /// Initialize the IDT
 pub fn init() void {
+    Console.print("IDT: 0x{X}\nIDTR: 0x{X}\n", .{ @intFromPtr(&IDT), @intFromPtr(&idtr) });
     // Initialize the IDT with blank gates to avoid undefined behaviour
     for (IDT, 0..) |_, i| IDT[i].defineEmptyGate();
     // Load the IDT into the processor
     loadIDT();
 }
+
+// Make sure everything is as expected
+//pub fn runtimeTests() void {
+//    expectEqual() catch Console.log("Test 1 failed", .{});
+//}

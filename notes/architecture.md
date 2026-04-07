@@ -30,6 +30,10 @@ Must have, at minimum, the 8 byte null descriptor, DPL 0 code segment descriptor
 As I plan to use paging, the GDT will be fairly minimal, including just the null descriptor, kernel code segment, kernel data segment, user code segment, user data segment, and task state segment, none of which actually restrict memory.
 
 ##### IDT
+Pretty typical IDT. Handlers are generated in comptime.
+
+Triple fault flow: Program generated interrupt -> #GP -> #DF -> #GP
+I am almost 100% certain that the IDT is not valid, and possibly the GDT as well
 
 ## IO
 Namespace presenting a hardware agnostic IO interface
