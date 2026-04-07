@@ -55,23 +55,24 @@ fn loadGDT(base: *GDTEntry, limit: u8) void {
     );
 }
 
+pub const NULL_SEGMENT = 0x0;
+pub const K_CODE_SEGMENT = 0x1;
+pub const K_DATA_SEGMENT = 0x2;
+pub const USER_CODE_SEGMENT = 0x3;
+pub const USER_DATA_SEGMENT = 0x4;
+pub const TSS_SEGMENT = 0x5;
+
 /// Functin the kernel calls into to initialize the GDT
 /// This should NEVER be called without interrupts being disabled!
 pub fn init() void {
     arch.setInterruptsEnabled(false);
-    // Null descriptor
-    GDT[0].init(0x0, 0x0, 0x0, 0x0);
-    // Kernel code segment
-    GDT[1].init(0xFFFFF, 0x0, 0x9A, 0xC);
-    // Kernel data segment
-    GDT[2].init(0xFFFFF, 0x0, 0x92, 0xC);
-    // User code segment
-    GDT[3].init(0xFFFFF, 0x0, 0xFA, 0xC);
-    // User data segment
-    GDT[4].init(0xFFFFF, 0x0, 0xFA, 0xC);
-    // Task state segment
-    const TSS: usize = @intFromPtr(&GDT[5]);
-    GDT[5].init(@sizeOf(GDTEntry) - 1, TSS, 0x82, 0x0);
+    GDT[NULL_SEGMENT].init(0x0, 0x0, 0x0, 0x0);
+    GDT[K_CODE_SEGMENT].init(0xFFFFF, 0x0, 0x9A, 0xC);
+    GDT[K_DATA_SEGMENT].init(0xFFFFF, 0x0, 0x92, 0xC);
+    GDT[USER_CODE_SEGMENT].init(0xFFFFF, 0x0, 0xFA, 0xC);
+    GDT[USER_DATA_SEGMENT].init(0xFFFFF, 0x0, 0xFA, 0xC);
+    const TSS: usize = @intFromPtr(&GDT[TSS_SEGMENT]);
+    GDT[TSS_SEGMENT].init(@sizeOf(GDTEntry) - 1, TSS, 0x82, 0x0);
     loadGDT(&GDT[0], 5);
     arch.setInterruptsEnabled(false);
 }

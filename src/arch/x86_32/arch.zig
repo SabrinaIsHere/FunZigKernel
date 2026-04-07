@@ -1,12 +1,17 @@
 //! Got this from https://github.com/ZystemOS/pluto/blob/develop/src/kernel/arch/x86/arch.zig
 
 const GDT = @import("GDT.zig");
+const IDT = @import("IDT.zig");
+const ISR = @import("ISR.zig");
 const IO = @import("../../io/io.zig");
-const Console = IO.Console;
+pub const Console = IO.Console;
 
 /// Initializes architecture specific things like the GDT and IDT
 pub fn init() void {
     GDT.init();
+    IDT.init();
+    ISR.init();
+    ISR.runtimeTests();
 }
 
 /// Wrapper for the x86 assembly instruction 'inb'

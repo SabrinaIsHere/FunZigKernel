@@ -4,7 +4,7 @@
 const IO = @import("io/io.zig");
 const Console = IO.Console;
 const Serial = @import("drivers/data/serial.zig");
-const arch = @import("arch/x86/arch.zig");
+const arch = @import("arch/x86_32/arch.zig");
 
 const MB_HEADER_MAGIC = 0x1BADB002;
 const MB_FLAG_ALIGN = 1 << 0;

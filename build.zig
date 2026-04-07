@@ -31,7 +31,10 @@ pub fn build(b: *std.Build) !void {
         // zig fmt: off
         "qemu-system-x86_64",
         "-m", "1G",
+        "--no-reboot",
+        //"--no-shutdown",
         "-nographic",
+        "-d", "int",
     });
     // zig fmt: on
     qemu_cmd.addArg("-kernel");
