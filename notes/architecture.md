@@ -6,8 +6,10 @@
  - Interrupts
     - ~GDT~
     - ~IDT~
-    - ISRs
-        - Exception handlers
+    - ~ISRs~
+    - Exception handlers
+    - APIC reprogramming
+        - cpuid
  - Memory
     - Memory map
     - Dynamic allocation

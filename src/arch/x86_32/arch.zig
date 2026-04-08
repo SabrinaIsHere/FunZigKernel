@@ -117,3 +117,14 @@ pub fn k_panic(comptime msg: []const u8) noreturn {
     Console.print(msg, .{});
     while (true) hlt();
 }
+
+pub fn cpuidVendorString() [16]u8 {
+    var vendor_string: [16]u8 = "no string detec.";
+    asm volatile (
+        \\ mov $0, eax
+        \\ cpuid
+        \\ mov %%eax, %[pt1]
+        : [pt1] "m" (vendor_string),
+    );
+    return vendor_string;
+}
