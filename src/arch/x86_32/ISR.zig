@@ -9,11 +9,11 @@ const interrupts = @import("interrupts.zig");
 export const isrSelect = interrupts.isrSelect;
 
 pub const ErrorCode = packed struct {
-    ext: u1,
-    idt: u1,
-    ti: u2,
-    index: u16,
     reserved: u12,
+    index: u16,
+    ti: u2,
+    idt: u1,
+    ext: u1,
 
     pub fn print(self: *ErrorCode) void {
         Console.print(
@@ -121,6 +121,7 @@ fn genISR(comptime vector: usize) Idt.InterruptHandler {
 
 /// Initialize the ISRs and load them into the IDT
 pub fn init() void {
+    defer Console.print("Interrupts Enabled\n", .{});
     // Define defaults
     // Define the 32 exceptions
     // 22-31 are reserved
@@ -131,8 +132,8 @@ pub fn init() void {
     //inline for (32..Idt.IDTLength) |i| {
     //    Idt.IDT[i].defineInterruptGate(genISR(i), Gdt.K_CODE_SEGMENT * 8, 1, Idt.PRIV_K);
     //}
+    interrupts.init();
     arch.enableInterrupts();
-    Console.print("Interrupts Enabled\n", .{});
     //runtimeTests();
 }
 
