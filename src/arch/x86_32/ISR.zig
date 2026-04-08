@@ -5,42 +5,10 @@ const arch = @import("arch.zig");
 const Idt = @import("IDT.zig");
 const Gdt = @import("GDT.zig");
 const Console = arch.Console;
+const interrupts = @import("interrupts.zig");
+export const isrSelect = interrupts.isrSelect;
 
-// General purpose registers
-const Registers = packed struct {
-    EAX: usize,
-    EBX: usize,
-    ECX: usize,
-    EDX: usize,
-    ESP: usize,
-    EBP: usize,
-    ESI: usize,
-    EDI: usize,
-
-    pub fn print(self: *Registers) void {
-        Console.print(
-            \\EAX: 0x{X}
-            \\EBX: 0x{X}
-            \\ECX: 0x{X}
-            \\EDX: 0x{X}
-            \\ESI: 0x{X}
-            \\EDI: 0x{X}
-            \\ESP: 0x{X}
-            \\EBP: 0x{X}
-            \\
-        , .{
-            self.EAX,
-            self.EBX,
-            self.ECX,
-            self.EDX,
-            self.ESI,
-            self.EDI,
-            self.ESP,
-            self.EBP,
-        });
-    }
-};
-const ErrorCode = packed struct {
+pub const ErrorCode = packed struct {
     ext: u1,
     idt: u1,
     ti: u2,
@@ -55,9 +23,10 @@ const ErrorCode = packed struct {
     }
 };
 /// Context of the processor when an interrupt is handled
-const CTX = packed struct {
+/// This stuff is pretty specific to interrupts which is why it's here and not in arch
+pub const CTX = packed struct {
     // General purpose registers
-    registers: Registers,
+    registers: arch.Registers,
     // Interrupt vector
     vector: u32,
     /// Error code for exceptions. Set to 0 when handling an interrupt
@@ -88,23 +57,6 @@ const CTX = packed struct {
         );
     }
 };
-
-var interrupts: u16 = 0;
-
-/// Stub function for unhandled exceptions
-/// TODO: Move this out to interrupts.zig when everything is tested and working
-fn isrStub(ctx: *CTX) void {
-    interrupts += 1;
-    Console.print("========== UNHANDLED INTERRUPT ==========\n", .{});
-    ctx.print();
-    if (interrupts >= 4) arch.k_panic("Interrupt done\n");
-}
-
-/// Selects ISR function to call into
-/// TODO: Move this to interrupts.zig as well
-export fn isrSelect(ctx: *CTX) callconv(.c) void {
-    isrStub(ctx);
-}
 
 /// Common ISR function; abstracts hardware weirdness away to make writing handlers easier
 export fn isrCommon() callconv(.naked) void {
@@ -176,9 +128,9 @@ pub fn init() void {
         Idt.IDT[i].defineTrapGate(genISR(i), Gdt.K_CODE_SEGMENT * 8, 1, Idt.PRIV_K);
     }
     // Define interrupts
-    inline for (32..Idt.IDTLength) |i| {
-        Idt.IDT[i].defineInterruptGate(genISR(i), Gdt.K_CODE_SEGMENT * 8, 1, Idt.PRIV_K);
-    }
+    //inline for (32..Idt.IDTLength) |i| {
+    //    Idt.IDT[i].defineInterruptGate(genISR(i), Gdt.K_CODE_SEGMENT * 8, 1, Idt.PRIV_K);
+    //}
     arch.enableInterrupts();
     Console.print("Interrupts Enabled\n", .{});
     //runtimeTests();

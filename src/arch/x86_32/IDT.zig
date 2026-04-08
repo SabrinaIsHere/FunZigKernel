@@ -117,7 +117,6 @@ fn storeIDT() IDTDescriptor {
 
 /// Initialize the IDT
 pub fn init() void {
-    Console.print("IDT: 0x{X}\nIDTR: 0x{X}\n", .{ @intFromPtr(&IDT), @intFromPtr(&idtr) });
     // Initialize the IDT with blank gates to avoid undefined behaviour
     for (IDT, 0..) |_, i| IDT[i].defineEmptyGate();
     // Load the IDT into the processor

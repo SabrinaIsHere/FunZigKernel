@@ -4,8 +4,10 @@
     - ~~Blocking IO~~
     - Interrupt IO
  - Interrupts
-    - GDT
-    - IDT
+    - ~GDT~
+    - ~IDT~
+    - ISRs
+        - Exception handlers
  - Memory
     - Memory map
     - Dynamic allocation
@@ -32,8 +34,9 @@ As I plan to use paging, the GDT will be fairly minimal, including just the null
 ##### IDT
 Pretty typical IDT. Handlers are generated in comptime.
 
-Triple fault flow: Program generated interrupt -> #GP -> #DF -> #GP
-I am almost 100% certain that the IDT is not valid, and possibly the GDT as well
+##### Issues
+Get a weird #DF interrupt with a screwy stack on boot.
+#GP Whenever I attampt to `iret` from an exception, but no #DF.
 
 ## IO
 Namespace presenting a hardware agnostic IO interface
