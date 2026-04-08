@@ -11,7 +11,6 @@ pub fn init() void {
     GDT.init();
     IDT.init();
     ISR.init();
-    ISR.runtimeTests();
 }
 
 /// Wrapper for the x86 assembly instruction 'inb'
@@ -55,15 +54,24 @@ pub fn out(port: u16, val: anytype) void {
     }
 }
 
-/// Enables/diables interrupts
-pub fn setInterruptsEnabled(enabled: bool) void {
-    switch (enabled) {
-        true => asm volatile ("sti"),
-        false => asm volatile ("cli"),
-    }
+// Enable interrupts
+pub fn enableInterrupts() void {
+    asm volatile ("sti");
 }
 
-// NOTE: Make this a real kpanic lol, and probably spin it off into it's own file
-pub fn k_panic(msg: []const u8) void {
+// Disable interrupts
+pub fn disableInterrupts() void {
+    asm volatile ("cli");
+}
+
+/// Halt the processor
+pub fn hlt() void {
+    asm volatile ("hlt");
+}
+
+/// Kernel panic; disable interrupts and halt the cpu
+pub fn k_panic(comptime msg: []const u8) noreturn {
+    disableInterrupts();
     Console.print(msg, .{});
+    while (true) hlt();
 }

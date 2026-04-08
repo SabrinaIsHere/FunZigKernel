@@ -4,7 +4,6 @@
 const IO = @import("../../io/io.zig");
 const Console = IO.Console;
 const std = @import("std");
-const expectEqual = std.testing.expectEqual;
 
 pub const InterruptHandler = fn () callconv(.naked) void;
 
@@ -49,8 +48,8 @@ pub const IDTEntry = packed struct {
     /// Define this gate as a trap gate
     pub fn defineTrapGate(self: *IDTEntry, handler: InterruptHandler, segment: u16, is32Bit: u1, dpl: u2) void {
         const offset: usize = @intFromPtr(&handler);
-        self.offset_lower = @truncate(offset);
-        self.offset_lower = @truncate(offset & 0xFFFF);
+        self.offset_lower = @truncate(offset & 0x0000FFFF);
+        self.offset_higher = @truncate((offset & 0xFFFF0000) >> 16);
         self.segment = segment;
         self.zero = 0;
         self.d = 0b00111 | (@as(u5, is32Bit) << 3);
@@ -60,13 +59,18 @@ pub const IDTEntry = packed struct {
     /// Define this gate as an interrupt gate
     pub fn defineInterruptGate(self: *IDTEntry, handler: InterruptHandler, segment: u16, is32Bit: u1, dpl: u2) void {
         const offset: usize = @intFromPtr(&handler);
-        self.offset_lower = @truncate(offset);
-        self.offset_lower = @truncate(offset & 0xFFFF);
+        self.offset_lower = @truncate(offset & 0x0000FFFF);
+        self.offset_higher = @truncate((offset & 0xFFFF0000) >> 16);
         self.segment = segment;
         self.zero = 0;
         self.d = 0b00110 | (@as(u5, is32Bit) << 3);
         self.dpl = dpl;
         self.p = 1;
+    }
+    pub fn print(self: *IDTEntry) void {
+        Console.print("Offset: 0x{X}{X}\n", .{ self.offset_higher, self.offset_lower });
+        Console.print("Segment: {any}\n", .{self.segment});
+        Console.print("D: {b}, P: {b}, DPL: {any}\n", .{ self.d, self.p, self.dpl });
     }
 };
 
@@ -84,7 +88,7 @@ const IDTDescriptor = packed struct {
 };
 /// Actual memory pointed to by the IDTR
 var idtr = IDTDescriptor{
-    .size = IDTLength - 1 * @sizeOf(IDTEntry),
+    .size = (IDTLength - 1) * @sizeOf(IDTEntry),
     .offset = undefined,
 };
 
@@ -103,8 +107,13 @@ fn loadIDT() void {
 }
 
 /// sidt gets the data in the IDTR
-/// NOTE: Pass back a struct
-fn storeIDT() void {}
+fn storeIDT() IDTDescriptor {
+    var data = IDTDescriptor{ .size = 0, .offset = 0 };
+    asm volatile ("sidt %[data]"
+        : [data] "=m" (data),
+    );
+    return data;
+}
 
 /// Initialize the IDT
 pub fn init() void {
@@ -113,9 +122,16 @@ pub fn init() void {
     for (IDT, 0..) |_, i| IDT[i].defineEmptyGate();
     // Load the IDT into the processor
     loadIDT();
+    runtimeTests();
 }
 
-// Make sure everything is as expected
-//pub fn runtimeTests() void {
-//    expectEqual() catch Console.log("Test 1 failed", .{});
-//}
+/// Make sure everything is as expected
+pub fn runtimeTests() void {
+    const idt = storeIDT();
+    if (idt.offset != @intFromPtr(&IDT[0])) {
+        Console.print("IDT offset differs from expected: 0x{X}: 0x{X}\n", .{ @intFromPtr(&IDT[0]), idt.offset });
+    }
+    if (IDTLength - 1 != idt.size / 8) {
+        Console.print("IDT Length differs from expected: {any}: {any}\n", .{ IDTLength - 1, idt.size / 8 });
+    }
+}

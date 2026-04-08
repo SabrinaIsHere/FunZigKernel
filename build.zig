@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) !void {
         "--no-reboot",
         //"--no-shutdown",
         "-nographic",
-        "-d", "int",
+        "-d", "int", // Interrupt debugging
     });
     // zig fmt: on
     qemu_cmd.addArg("-kernel");

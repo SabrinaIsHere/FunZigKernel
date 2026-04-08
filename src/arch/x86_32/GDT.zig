@@ -23,13 +23,18 @@ const GDTEntry = packed struct {
 
     /// Initialize the GDT entry at the given address. Abstract away the weirdness
     pub fn init(self: *GDTEntry, limit: u20, base: u32, access: u8, flags: u4) void {
-        self.limit1 = @intCast(limit & 0xFFFF);
-        self.limit2 = @intCast((limit >> 16) & 0x0F);
-        self.base1 = @intCast(base & 0xFFFF);
-        self.base2 = @intCast((base << 16) & 0xFF);
-        self.base3 = @intCast((base << 24) & 0xFF);
+        self.limit1 = @truncate((limit & 0x0FFFF));
+        self.limit2 = @truncate((limit & 0xF0000) >> 16);
+        self.base1 = @truncate((base & 0x0000FFFF));
+        self.base2 = @truncate((base & 0x00FF0000) >> 16);
+        self.base3 = @truncate((base & 0xFF000000) >> 24);
         self.access = access;
         self.flags = flags;
+    }
+
+    pub fn print(self: *GDTEntry) void {
+        Console.print("Limit: 0x{X}{X}\n", .{ self.limit2, self.limit1 });
+        Console.print("Base: 0x{X}{X}{X}\n", .{ self.base3, self.base2, self.base1 });
     }
 };
 
@@ -55,6 +60,15 @@ fn loadGDT(base: *GDTEntry, limit: u8) void {
     );
 }
 
+/// sgdt gets the data in the GDTR
+fn storeGDT() GDTRt {
+    var data = GDTRt{ .limit = 0, .base = 0 };
+    asm volatile ("sgdt %[data]"
+        : [data] "=m" (data),
+    );
+    return data;
+}
+
 pub const NULL_SEGMENT = 0x0;
 pub const K_CODE_SEGMENT = 0x1;
 pub const K_DATA_SEGMENT = 0x2;
@@ -65,14 +79,31 @@ pub const TSS_SEGMENT = 0x5;
 /// Functin the kernel calls into to initialize the GDT
 /// This should NEVER be called without interrupts being disabled!
 pub fn init() void {
-    arch.setInterruptsEnabled(false);
+    arch.disableInterrupts();
     GDT[NULL_SEGMENT].init(0x0, 0x0, 0x0, 0x0);
     GDT[K_CODE_SEGMENT].init(0xFFFFF, 0x0, 0x9A, 0xC);
     GDT[K_DATA_SEGMENT].init(0xFFFFF, 0x0, 0x92, 0xC);
     GDT[USER_CODE_SEGMENT].init(0xFFFFF, 0x0, 0xFA, 0xC);
     GDT[USER_DATA_SEGMENT].init(0xFFFFF, 0x0, 0xFA, 0xC);
     const TSS: usize = @intFromPtr(&GDT[TSS_SEGMENT]);
-    GDT[TSS_SEGMENT].init(@sizeOf(GDTEntry) - 1, TSS, 0x82, 0x0);
-    loadGDT(&GDT[0], 5);
-    arch.setInterruptsEnabled(true);
+    GDT[TSS_SEGMENT].init(@sizeOf(GDTEntry) - 1, TSS, 0x89, 0x0);
+    loadGDT(&GDT[0], 6);
+    runtimeTests();
+}
+
+fn runtimeTests() void {
+    const GDTRegister = storeGDT();
+    if (GDTRegister.limit / @sizeOf(GDTEntry) != 6) {
+        Console.print(
+            "Size of GDT differs from expected: {any}: {any}\n",
+            .{ 6, GDTRegister.limit / @sizeOf(GDTEntry) },
+        );
+    }
+    if (GDTRegister.base != @intFromPtr(&GDT[0])) {
+        Console.print(
+            "Base of GDT differs from expected: {any}: {any}\n",
+            .{ GDTRegister.base, @intFromPtr(&GDT[0]) },
+        );
+    }
+    if (@sizeOf(GDTEntry) != 8) Console.print("GDTEntry has wrong number of bytes\n", .{});
 }
