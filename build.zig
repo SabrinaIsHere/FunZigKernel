@@ -31,9 +31,12 @@ pub fn build(b: *std.Build) !void {
         // zig fmt: off
         "qemu-system-x86_64",
         "-m", "1G",
+        //"-cpu", "host",
+        "-smp", "1",
         "--no-reboot",
         //"--no-shutdown",
         "-nographic",
+        //"--enable-kvm",
         //"-d", "int", // Interrupt debugging
     });
     // zig fmt: on

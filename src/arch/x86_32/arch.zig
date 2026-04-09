@@ -46,8 +46,8 @@ pub const Registers = packed struct {
 pub fn init() void {
     GDT.init();
     IDT.init();
+    Cpuid.init();
     ISR.init();
-    Console.print("Vendor string: {s}\n", .{Cpuid.getVendorString()});
 }
 
 /// Wrapper for the x86 assembly instruction 'inb'
