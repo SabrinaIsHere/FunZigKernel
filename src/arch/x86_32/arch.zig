@@ -3,6 +3,7 @@
 const GDT = @import("GDT.zig");
 const IDT = @import("IDT.zig");
 const ISR = @import("ISR.zig");
+const Cpuid = @import("cpuid.zig");
 const IO = @import("../../io/io.zig");
 pub const Console = IO.Console;
 
@@ -46,6 +47,7 @@ pub fn init() void {
     GDT.init();
     IDT.init();
     ISR.init();
+    Console.print("Vendor string: {s}\n", .{Cpuid.getVendorString()});
 }
 
 /// Wrapper for the x86 assembly instruction 'inb'
@@ -116,15 +118,4 @@ pub fn k_panic(comptime msg: []const u8) noreturn {
     Console.print("kpanic: ", .{});
     Console.print(msg, .{});
     while (true) hlt();
-}
-
-pub fn cpuidVendorString() [16]u8 {
-    var vendor_string: [16]u8 = "no string detec.";
-    asm volatile (
-        \\ mov $0, eax
-        \\ cpuid
-        \\ mov %%eax, %[pt1]
-        : [pt1] "m" (vendor_string),
-    );
-    return vendor_string;
 }
