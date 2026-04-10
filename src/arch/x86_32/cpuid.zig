@@ -1,9 +1,16 @@
 const arch = @import("arch.zig");
 const Console = arch.Console;
 
+pub const Regs = packed struct(u128) {
+    eax: usize,
+    ebx: usize,
+    ecx: usize,
+    edx: usize,
+};
+
 /// Higher level interface for the features given by the processor.
 /// Packed for bit cast reasons
-pub const CPUInfo = packed struct {
+pub const CPUInfo = packed struct(u128) {
     // EAX
     stepping_id: u4,
     model_id: u4,
@@ -95,11 +102,11 @@ var max_leaf: usize = 0;
 pub var vendor_string: [12]u8 = [_]u8{ 'n', 'o', 't', ' ', 'k', 'n', 'o', 'w', 'n', '.', ' ', ' ' };
 
 /// Thin cpuid wrapper, wrapped in other functions to further abstract this gnarly ass assembly lol
-fn cpuid(code: u32) packed struct { eax: usize, ebx: usize, ecx: usize, edx: usize } {
+fn cpuid(code: u32) Regs {
     // Handle invalid codes
     if (!(max_leaf == 0 and code == 0) and code > max_leaf) {
         Console.print("cpuid: Code '{any}' is out of bounds for this processor\n", .{code});
-        return .{ .eax = 0, .ebx = 0, .ecx = 0, .edx = 0 };
+        return Regs{ .eax = 0, .ebx = 0, .ecx = 0, .edx = 0 };
     }
     var eax: usize = 0;
     var ebx: usize = 0;
@@ -107,29 +114,29 @@ fn cpuid(code: u32) packed struct { eax: usize, ebx: usize, ecx: usize, edx: usi
     var edx: usize = 0;
     asm volatile (
         \\ cpuid
-        \\ movl %%eax, %[pt1]
-        \\ movl %%ebx, %[pt2]
-        \\ movl %%ecx, %[pt3]
-        \\ movl %%edx, %[pt4]
-        : [pt1] "=m" (eax),
-          [pt2] "=m" (ebx),
-          [pt3] "=m" (ecx),
-          [pt4] "=m" (edx),
+        \\ movl %%eax, %[eax]
+        \\ movl %%ebx, %[ebx]
+        \\ movl %%ecx, %[ecx]
+        \\ movl %%edx, %[edx]
+        : [eax] "=m" (eax),
+          [ebx] "=m" (ebx),
+          [ecx] "=m" (ecx),
+          [edx] "=m" (edx),
         : [code] "{eax}" (code),
     );
-    return .{ .eax = eax, .ebx = ebx, .ecx = ecx, .edx = edx };
+    Console.print("", .{}); // This is the only way to make this work. I have no idea why, probably compiler fuckery
+    return Regs{ .eax = eax, .ebx = ebx, .ecx = ecx, .edx = edx };
 }
 
 /// Initialize the data structures in this file
 pub fn init() void {
     vendor_string = getVendorString();
     cpu_info = getCpuInfo();
-    Console.print("APIC Enabled: {any}\n", .{cpu_info.apic});
 }
 
 /// Get the vendor string and set the max leaf value
 fn getVendorString() [12]u8 {
-    const regs = cpuid(0x00);
+    const regs = cpuid(0);
     max_leaf = regs.eax;
     const string = [_]u32{ regs.ebx, regs.edx, regs.ecx };
     return @bitCast(string);
@@ -137,5 +144,5 @@ fn getVendorString() [12]u8 {
 
 /// Leaf 01h. CPU version, family, model, feature info, etc.
 fn getCpuInfo() CPUInfo {
-    return @bitCast(cpuid(0x01));
+    return @bitCast(cpuid(1));
 }
