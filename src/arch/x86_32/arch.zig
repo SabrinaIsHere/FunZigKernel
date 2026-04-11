@@ -4,6 +4,7 @@ const GDT = @import("GDT.zig");
 const IDT = @import("IDT.zig");
 const ISR = @import("ISR.zig");
 const Cpuid = @import("cpuid.zig");
+const Apic = @import("apic.zig");
 const IO = @import("../../io/io.zig");
 pub const Console = IO.Console;
 
@@ -44,9 +45,12 @@ pub const Registers = packed struct {
 
 /// Initializes architecture specific things like the GDT and IDT
 pub fn init() void {
+    disableInterrupts();
     GDT.init();
     IDT.init();
     Cpuid.init();
+    //Apic.init(); // NOTE: This probably needs to go with the acpi stuff
+    // This reenables interrupts
     ISR.init();
 }
 

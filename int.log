@@ -1,36 +1,35 @@
 c[?7l[2J[0mSeaBIOS (version rel-1.17.0-0-gb52ca86e094d-prebuilt.qemu.org)
 
 
-iPXE (http://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+3EFD1D60+3EF31D60 CA00
+iPXE (http://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+3EFD1C60+3EF31C60 CA00
 Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
 
 
 Booting from ROM..Kernel loaded
-APIC Enabled: false
 Interrupts Enabled
 ========== UNHANDLED INTERRUPT ==========
-EAX: 0xFF53F000
-EBX: 0xFF53F000
-ECX: 0xFEA5F000
-EDX: 0xE987F000
-ESI: 0xD445F000
-EDI: 0xD445F000
-ESP: 0xD445F000
-EBP: 0xD445F000
-Error code: 1, 1, 1, 17503
-Vector: 0xEF57F000
-EIP: 0xD2A2F000
-CS: 0xF84DF000
-EFLAGS: 0xF841F000
+EAX: 0xF000FF53
+EBX: 0xF000FF53
+ECX: 0xF000FEA5
+EDX: 0xF000E987
+ESI: 0xF000D445
+EDI: 0xF000D445
+ESP: 0xF000D445
+EBP: 0xF000D445
+Error code: 1, 1, 3, 13
+Vector: 0xF000EF57
+EIP: 0xF000D2A2
+CS: 0xF000F84D
+EFLAGS: 0xF000F841
 Invalid opcode fault
 EAX: 0x2E
 EBX: 0x9500
-ECX: 0x27AF1C
-EDX: 0x279E1D
+ECX: 0x279F1C
+EDX: 0x278E1D
 ESI: 0x2E
-EDI: 0x27AE74
-ESP: 0x279DB4
-EBP: 0x279DE4
+EDI: 0x279E74
+ESP: 0x278DB4
+EBP: 0x278DE4
 Error code: 0, 0, 0, 0
 Vector: 0x6
 EIP: 0x205485
@@ -47,4 +46,4 @@ run transitive failure
 +- run exe kernel.elf failure
 
 error: the following build command failed with exit code 1:
-.zig-cache/o/eeac4747857c8a14064a8073fdea51bd/build /nix/store/anhqgh20jqazy2h03h97rlv6kcl88qq7-zig-0.15.2/bin/zig /nix/store/anhqgh20jqazy2h03h97rlv6kcl88qq7-zig-0.15.2/lib/zig /home/sabrina/Projects/Zig/FunZigKernel .zig-cache /home/sabrina/.cache/zig --seed 0x21490cd4 -Zb2f3a9f3d47295c9 run
+.zig-cache/o/790fcb6b6f2ff9a64f0dc077d5aae0c3/build /nix/store/anhqgh20jqazy2h03h97rlv6kcl88qq7-zig-0.15.2/bin/zig /nix/store/anhqgh20jqazy2h03h97rlv6kcl88qq7-zig-0.15.2/lib/zig /home/sabrina/Projects/Zig/FunZigKernel .zig-cache /root/.cache/zig --seed 0xc2667a09 -Z19ce5f6c07926571 run

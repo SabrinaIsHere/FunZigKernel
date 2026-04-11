@@ -36,11 +36,15 @@ As I plan to use paging, the GDT will be fairly minimal, including just the null
 ##### IDT
 Pretty typical IDT. Handlers are generated in comptime.
 
+##### APIC
+I'm not planning to support PICs since the ultimate goal here is to run on my laptop and supporting ultra legacy systems seems like a waste of effort. Maybe if I were targeting a broader hardware set.
+
 ##### Issues
 Get a weird #DF interrupt with a screwy stack on boot
 - Almost certainly related to PICs not being reprogrammed. https://forum.osdev.org/viewtopic.php?t=57381
 
 #GP Whenever I attampt to `iret` from an exception, but no #DF.
+- Working on the apic stuff before this in case it's related
 
 ## IO
 Namespace presenting a hardware agnostic IO interface

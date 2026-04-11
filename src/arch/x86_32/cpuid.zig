@@ -1,6 +1,7 @@
 const arch = @import("arch.zig");
 const Console = arch.Console;
 
+// CPUID wrapper return value
 pub const Regs = packed struct(u128) {
     eax: usize,
     ebx: usize,
@@ -124,6 +125,7 @@ fn cpuid(code: u32) Regs {
           [edx] "=m" (edx),
         : [code] "{eax}" (code),
     );
+    // NOTE: I need to look at the assmebly don't I
     Console.print("", .{}); // This is the only way to make this work. I have no idea why, probably compiler fuckery
     return Regs{ .eax = eax, .ebx = ebx, .ecx = ecx, .edx = edx };
 }

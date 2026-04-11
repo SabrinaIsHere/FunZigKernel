@@ -4,25 +4,8 @@
 const IO = @import("io/io.zig");
 const Console = IO.Console;
 const Serial = @import("drivers/data/serial.zig");
-const arch = @import("arch/x86_32/arch.zig");
-
-const MB_HEADER_MAGIC = 0x1BADB002;
-const MB_FLAG_ALIGN = 1 << 0;
-const MB_FLAG_MEMINFO = 1 << 1;
-const FLAGS = MB_FLAG_ALIGN | MB_FLAG_MEMINFO;
-
-/// https://www.gnu.org/software/grub/manual/multiboot/multiboot.html#Header-layout
-const MultibootHeader = packed struct {
-    magic: u32 = MB_HEADER_MAGIC,
-    flags: u32 = FLAGS,
-    checksum: u32,
-    padding: u32 = 0,
-};
-
-export var multiboot: MultibootHeader align(4) linksection(".multiboot") = .{
-    // Here we are adding magic and flags and ~ to get 1's complement and by adding 1 we get 2's complement
-    .checksum = ~@as(u32, (MB_HEADER_MAGIC + FLAGS)) + 1,
-};
+const arch = @import("arch/arch.zig").arch;
+const Multiboot = @import("multiboot.zig");
 
 var stack_bytes: [16 * 1024]u8 align(16) linksection(".bss") = undefined;
 
@@ -35,6 +18,8 @@ export fn _start() callconv(.naked) noreturn {
     asm volatile (
         \\ movl %[stack_top], %%esp
         \\ movl %%esp, %%ebp
+        \\ pushl %%ebx
+        \\ pushl %%eax
         \\ call %[kmain:P]
         :
         // The stack grows downwards on x86, so we need to point ESP register
@@ -53,10 +38,11 @@ export fn _start() callconv(.naked) noreturn {
 }
 
 // We use noinline to make sure it don't get inlined by compiler
-noinline fn kmain() callconv(.c) noreturn {
+noinline fn kmain(multiboot_magic: u32, multiboot_info: *Multiboot.MultibootInfo) callconv(.c) noreturn {
     // Initialize VGA and serial driver
     Console.init();
     Console.print("Kernel loaded\n", .{});
+    Multiboot.init(multiboot_magic, multiboot_info);
     // Initialize architecture stuff
     arch.init();
     // Loop forever as there is nothing to do

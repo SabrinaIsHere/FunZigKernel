@@ -51,8 +51,8 @@ fn isrStub(ctx: *CTX) void {
     interrupts += 1;
     Console.print("========== UNHANDLED INTERRUPT ==========\n", .{});
     ctx.print();
-    //if (interrupts >= 4) arch.k_panic("Interrupts exceeded.\n");
-    //arch.wait();
+    //if (interrupts >= 2) arch.k_panic("Interrupts exceeded.\n");
+    arch.wait();
 }
 
 /// Selects ISR function to call into
