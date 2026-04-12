@@ -18,8 +18,27 @@ const HeaderTagType = enum(u16) {
 
 const InfoTagType = enum(u32) {
     END,
-    MMAP = 6,
-    LOAD_BASE_ADDR = 21,
+    BOOT_CMD_LINE,
+    BOOT_LOADER_NAME,
+    MODULES,
+    BASIC_MEMINFO,
+    BOOTDEV,
+    MMAP,
+    VBE,
+    FRAMEBUFFER,
+    ELF_SECTIONS,
+    APM,
+    EFI32,
+    EFI64,
+    SMBIOS,
+    ACPI_OLD,
+    ACPI_NEW,
+    NETWORK,
+    EFI_MMAP,
+    EFI_BS,
+    EFI32_IH,
+    EFI64_IH,
+    LOAD_BASE_ADDR,
 };
 
 /// https://www.gnu.org/software/grub/manual/multiboot/multiboot.html#Header-layout
@@ -62,11 +81,9 @@ pub const MultibootInfo = extern struct {
 };
 
 /// Fixed part of mb2 tags. Used to walk the struct, extracting tags I care about
-pub const MultibootInfoTag = extern struct {
+pub const MultibootInfoTag = packed struct(u64) {
     type: InfoTagType,
     size: u32,
-    val: u32,
-    padding: u32,
 
     pub fn print(self: *MultibootInfoTag) void {
         Console.print("Tag: 0x{X}: {any}: {any} bytes\n", .{ @intFromPtr(self), self.type, self.size });
@@ -78,42 +95,15 @@ pub fn init(magic: u32, info: *MultibootInfo) void {
     if (magic != MB2_ID_NUMBER) arch.k_panic("Bootloader is not multiboot2 compliant\n");
     if (@intFromPtr(info) & 7 != 0) arch.k_panic("MBI is not 8-byte aligned.\n");
     Console.print("MBI: 0x{X}:0x{X} bytes\n", .{ @intFromPtr(info), info.total_size });
-    var bytesWalked: u32 = @sizeOf(MultibootInfo);
-    const offset: usize = @intFromPtr(info);
-    // NOTE: This is probably only going to work if I do a many item pointer, painful as that is
-    var curr_tag: *MultibootInfoTag = @ptrFromInt(offset + bytesWalked);
+    var tag_offset: u32 = @sizeOf(MultibootInfo);
+    const mbi_offset: usize = @intFromPtr(info);
+    const tags: [*]align(8) MultibootInfoTag align(8) = @ptrFromInt(mbi_offset + tag_offset);
+    var curr_tag: *MultibootInfoTag = &tags[0];
 
-    // TODO: Get rid of this
-    Console.print("Test\n", .{});
-    arch.enableInterrupts();
-    const tst: *MultibootInfoTag = @ptrFromInt(offset + 24);
-    //tst.print();
-    _ = tst;
-
-    outer: while (true) {
+    while (curr_tag.type != InfoTagType.END) {
+        if (tag_offset & 7 != 0) Console.print("Error: not 8-byte aligned ({any})\n", .{tag_offset});
         curr_tag.print();
-        switch (curr_tag.type) {
-            InfoTagType.END => {
-                if (curr_tag.size != 8) arch.k_panic("Invalid end tag: size differs from expectation\n");
-                Console.print("EOS\n", .{});
-                break :outer;
-            },
-            InfoTagType.LOAD_BASE_ADDR => {
-                //const base_addr: *u32 = @ptrFromInt(offset + bytesWalked + 8);
-                Console.print("Load base addr: 0x{X}\n", .{curr_tag.val});
-                //bytesWalked += 4;
-            },
-            else => {
-                curr_tag.print();
-                break;
-            },
-        }
-        //bytesWalked += currTag.size;
-        bytesWalked += (curr_tag.size + 7) & ~@as(u32, 7); // Ensure 8 byte alignment (not that it's helping)
-        if (bytesWalked & 7 != 0) Console.print("Error: not 8-byte aligned ({any})\n", .{bytesWalked});
-        // Just in case mbi is mangled and there's no end tag
-        if (bytesWalked >= info.total_size) break;
-        Console.print("Tag Offset: {any}\n", .{bytesWalked});
-        curr_tag = @ptrFromInt(offset + bytesWalked);
+        tag_offset += (curr_tag.size + 7) & ~@as(u32, 7);
+        curr_tag = &tags[(tag_offset / 8) - 1];
     }
 }

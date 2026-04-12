@@ -45,9 +45,9 @@ noinline fn kmain(multiboot_magic: u32, multiboot_info: *Multiboot.MultibootInfo
     // Initialize VGA and serial driver
     Console.init();
     Console.print("Kernel loaded\n", .{});
+    Multiboot.init(multiboot_magic, multiboot_info);
     // Initialize architecture stuff
     arch.init();
-    Multiboot.init(multiboot_magic, multiboot_info);
     // Loop forever as there is nothing to do
     while (true) {
         asm volatile ("hlt");
