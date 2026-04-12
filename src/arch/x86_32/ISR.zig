@@ -133,7 +133,7 @@ pub fn init() void {
     //    Idt.IDT[i].defineInterruptGate(genISR(i), Gdt.K_CODE_SEGMENT * 8, 1, Idt.PRIV_K);
     //}
     interrupts.init();
-    arch.enableInterrupts();
+    //arch.enableInterrupts(); // TODO: Reenable this
     //runtimeTests();
 }
 

@@ -1,6 +1,10 @@
 const std = @import("std");
 
+// Gonna be real, zig build system is worse than makefiles almost purely because of how badly documented it is
+
 pub fn build(b: *std.Build) !void {
+    const gdb = b.option(bool, "gdb", "Debug with GDB") orelse false;
+
     const optimize = b.standardOptimizeOption(.{});
 
     const Target = std.Target.x86;
@@ -48,46 +52,40 @@ pub fn build(b: *std.Build) !void {
         // zig fmt: off
         "grub-mkrescue", "-o", "kernel.iso", "isodir",
     });
-    mk_iso_cmd.step.dependOn(&install_kernel_cmd.step);
+    mk_iso_cmd.step.dependOn(&install_grub_cfg_cmd.step);
     // zig fmt: on
     const qemu_cmd = b.addSystemCommand(&[_][]const u8{
         // zig fmt: off
         "qemu-system-x86_64",
         "-m", "1G",
-        "-cpu", "host",
+        //"-cpu", "host",
         "-smp", "1",
         "--no-reboot",
-        //"--no-shutdown",
+        "--no-shutdown",
         "-nographic",
-        "--enable-kvm",
-        //"-d", "int", // Interrupt debugging
+        //"--enable-kvm",
+        "-D", "./qemu.log",
+        "-d", "int", // Interrupt debugging
         "-cdrom", "kernel.iso"
     });
+    if (gdb) qemu_cmd.addArgs(&[_][]const u8 {"-S", "-s"});
     qemu_cmd.step.dependOn(&mk_iso_cmd.step);
     // zig fmt: on
     //qemu_cmd.addArg("-kernel");
     //qemu_cmd.addFileArg(kernel_path);
 
     const run_cmd = b.addRunArtifact(kernel);
-    //run_cmd.step.dependOn(&isodir_cmd.step);
-    //run_cmd.step.dependOn(&install_kernel_cmd.step);
-    //run_cmd.step.dependOn(&install_grub_cfg_cmd.step);
-    //run_cmd.step.dependOn(&mk_iso_cmd.step);
     run_cmd.step.dependOn(&qemu_cmd.step);
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
 
     const run_step = b.step("run", "Run kernel with qemu");
-    //run_step.dependOn(&isodir_cmd.step);
-    //run_step.dependOn(&install_kernel_cmd.step);
-    //run_step.dependOn(&install_grub_cfg_cmd.step);
-    //run_step.dependOn(&mk_iso_cmd.step);
     run_step.dependOn(&qemu_cmd.step);
 
     const rm_cmd = b.addSystemCommand(&[_][]const u8{
         // zig fmt: off
-        "rm",  "-rf", "kernel.iso", "zig-out", "isodir"
+        "rm",  "-rf", "kernel.iso", "zig-out", "isodir", "*.log"
     });
     // zig fmt: on
     const clean_step = b.step("clean", "Remove artifacts");

@@ -51,7 +51,7 @@ fn isrStub(ctx: *CTX) void {
     interrupts += 1;
     Console.print("========== UNHANDLED INTERRUPT ==========\n", .{});
     ctx.print();
-    //if (interrupts >= 2) arch.k_panic("Interrupts exceeded.\n");
+    if (interrupts >= 2) arch.k_panic("Interrupts exceeded.\n");
     arch.wait();
 }
 
@@ -72,7 +72,8 @@ pub fn init() void {
 fn handleUD(ctx: *CTX) void {
     Console.print("Invalid opcode fault\n", .{});
     ctx.print();
-    arch.wait();
+    ctx.eip += 4;
+    //arch.wait();
 }
 
 /// Handle general protection faults

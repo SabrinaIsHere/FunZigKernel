@@ -69,3 +69,14 @@ Scrolling pushes everything up one line and blanks out the very bottom
 
 #### Serial
 Allows some automated testing and a much more convenient debugging experience. Currently polls on everything though it won't in the future.
+
+## Multiboot
+Using multiboot2 for access to acpi stuff, although at this point I'm not sure if it was worth it lol
+
+Issues -
+ - Getting kind of a weird memory format passed to mbi with one valid tag and then a bunch of nonsense
+
+Notes -
+ - Memory in pointer passed to the kernel:
+   - 0x00005600 0x00000000 0x00000015 0x0000000c 0x00200000 0x00000000 0x00000001 0x00000009
+ - Seems like the end tag is around 0x1dc6b4 or 0x1dc6f8
