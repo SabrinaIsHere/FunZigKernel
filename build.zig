@@ -24,9 +24,32 @@ pub fn build(b: *std.Build) !void {
         }),
     });
     kernel.setLinkerScript(b.path("src/linker.ld"));
+    const installAssembly = b.addInstallBinFile(kernel.getEmittedAsm(), "kernel.s");
+    b.getInstallStep().dependOn(&installAssembly.step);
     b.installArtifact(kernel);
 
-    const kernel_path = kernel.getEmittedBin();
+    //const kernel_path = kernel.getEmittedBin();
+    const isodir_cmd = b.addSystemCommand(&[_][]const u8{
+        // zig fmt: off
+        "mkdir", "-p", "isodir/boot/grub",
+    });
+    isodir_cmd.step.dependOn(b.getInstallStep());
+    const install_kernel_cmd = b.addSystemCommand(&[_][]const u8{
+        // zig fmt: off
+        "cp", "zig-out/bin/kernel.elf", "isodir/boot/kernel.elf",
+    });
+    install_kernel_cmd.step.dependOn(&isodir_cmd.step);
+    const install_grub_cfg_cmd = b.addSystemCommand(&[_][]const u8{
+        // zig fmt: off
+        "cp", "grub.cfg", "isodir/boot/grub/grub.cfg",
+    });
+    install_grub_cfg_cmd.step.dependOn(&install_kernel_cmd.step);
+    const mk_iso_cmd = b.addSystemCommand(&[_][]const u8{
+        // zig fmt: off
+        "grub-mkrescue", "-o", "kernel.iso", "isodir",
+    });
+    mk_iso_cmd.step.dependOn(&install_kernel_cmd.step);
+    // zig fmt: on
     const qemu_cmd = b.addSystemCommand(&[_][]const u8{
         // zig fmt: off
         "qemu-system-x86_64",
@@ -38,18 +61,35 @@ pub fn build(b: *std.Build) !void {
         "-nographic",
         "--enable-kvm",
         //"-d", "int", // Interrupt debugging
+        "-cdrom", "kernel.iso"
     });
+    qemu_cmd.step.dependOn(&mk_iso_cmd.step);
     // zig fmt: on
-    qemu_cmd.addArg("-kernel");
-    qemu_cmd.addFileArg(kernel_path);
-    qemu_cmd.step.dependOn(b.getInstallStep());
+    //qemu_cmd.addArg("-kernel");
+    //qemu_cmd.addFileArg(kernel_path);
 
     const run_cmd = b.addRunArtifact(kernel);
+    //run_cmd.step.dependOn(&isodir_cmd.step);
+    //run_cmd.step.dependOn(&install_kernel_cmd.step);
+    //run_cmd.step.dependOn(&install_grub_cfg_cmd.step);
+    //run_cmd.step.dependOn(&mk_iso_cmd.step);
     run_cmd.step.dependOn(&qemu_cmd.step);
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
 
     const run_step = b.step("run", "Run kernel with qemu");
-    run_step.dependOn(&run_cmd.step);
+    //run_step.dependOn(&isodir_cmd.step);
+    //run_step.dependOn(&install_kernel_cmd.step);
+    //run_step.dependOn(&install_grub_cfg_cmd.step);
+    //run_step.dependOn(&mk_iso_cmd.step);
+    run_step.dependOn(&qemu_cmd.step);
+
+    const rm_cmd = b.addSystemCommand(&[_][]const u8{
+        // zig fmt: off
+        "rm",  "-rf", "kernel.iso", "zig-out", "isodir"
+    });
+    // zig fmt: on
+    const clean_step = b.step("clean", "Remove artifacts");
+    clean_step.dependOn(&rm_cmd.step);
 }

@@ -18,6 +18,9 @@ export fn _start() callconv(.naked) noreturn {
     asm volatile (
         \\ movl %[stack_top], %%esp
         \\ movl %%esp, %%ebp
+        // Reset EFLAGS
+        \\ pushl $0
+        \\ popf
         \\ pushl %%ebx
         \\ pushl %%eax
         \\ call %[kmain:P]
