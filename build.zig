@@ -4,6 +4,10 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
     const gdb = b.option(bool, "gdb", "Debug with GDB") orelse false;
+    const log = b.option(bool, "log", "Enable Qemu logs") orelse false;
+    const graphical = b.option(bool, "graphical", "Enable graphical Qemu output") orelse false;
+    //const mem = b.option(u32, "mem", "Define the number megabytes of memory available") orelse 1024;
+    //const smp = b.option(u8, "smp", "Define the number of processors available") orelse 1;
 
     const optimize = b.standardOptimizeOption(.{});
 
@@ -58,17 +62,22 @@ pub fn build(b: *std.Build) !void {
         // zig fmt: off
         "qemu-system-x86_64",
         "-m", "1G",
-        //"-cpu", "host",
         "-smp", "1",
         "--no-reboot",
         "--no-shutdown",
-        "-nographic",
-        //"--enable-kvm",
-        "-D", "./qemu.log",
-        "-d", "int", // Interrupt debugging
+        "-net", "none",
+        "-drive", "if=pflash,format=raw,unit=0,file=./ovmf/OVMF_CODE.fd,readonly=on", // For acpi 2.0+
+        "-drive", "if=pflash,format=raw,unit=1,file=./ovmf/OVMF_VARS.fd", // For acpi 2.0+
+        "-drive", "format=raw,file=fat:rw:isodir",
         "-cdrom", "kernel.iso"
     });
     if (gdb) qemu_cmd.addArgs(&[_][]const u8 {"-S", "-s"});
+    if (log) {
+        qemu_cmd.addArgs(&[_][]const u8 {"-D", "./qemu.log", "-d", "int"});
+    } else {
+        qemu_cmd.addArgs(&[_][]const u8 {"--enable-kvm", "-cpu", "host"});
+    }
+    if (!graphical) qemu_cmd.addArgs(&[_][]const u8 {"-nographic"});
     qemu_cmd.step.dependOn(&mk_iso_cmd.step);
     // zig fmt: on
     //qemu_cmd.addArg("-kernel");

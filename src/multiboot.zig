@@ -101,7 +101,7 @@ pub fn init(magic: u32, info: *MultibootInfo) void {
     var curr_tag: *MultibootInfoTag = &tags[0];
 
     while (curr_tag.type != InfoTagType.END) {
-        if (tag_offset & 7 != 0) Console.print("Error: not 8-byte aligned ({any})\n", .{tag_offset});
+        if (tag_offset & 7 != 0) arch.k_panic("Error: tag is not 8-byte aligned\n");
         curr_tag.print();
         tag_offset += (curr_tag.size + 7) & ~@as(u32, 7);
         curr_tag = &tags[(tag_offset / 8) - 1];
