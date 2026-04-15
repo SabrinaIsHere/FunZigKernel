@@ -1,8 +1,8 @@
 //! https://wiki.osdev.org/Interrupt_Descriptor_Table
 //! https://github.com/ZystemOS/pluto/blob/develop/src/kernel/arch/x86/idt.zig
 
-const arch = @import("arch.zig");
-const Console = arch.Console;
+const IO = @import("../../io/io.zig");
+const Console = IO.Console;
 const std = @import("std");
 
 pub const InterruptHandler = fn () callconv(.naked) void;

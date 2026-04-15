@@ -2,7 +2,7 @@ const native_endian = @import("builtin").target.cpu.arch.endian();
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const arch = @import("arch.zig");
-const Console = arch.Console;
+const Console = @import("../../io/io.zig").Console;
 
 /// Base address of the GDT table
 var GDT: [6]GDTEntry = undefined;

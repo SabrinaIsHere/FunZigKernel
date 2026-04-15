@@ -5,7 +5,8 @@ const IDT = @import("IDT.zig");
 const ISR = @import("ISR.zig");
 const Cpuid = @import("cpuid.zig");
 const Apic = @import("apic.zig");
-pub const Console = @import("console.zig");
+const IO = @import("../../io/io.zig");
+pub const Console = IO.Console;
 
 // General purpose registers
 pub const Registers = packed struct {

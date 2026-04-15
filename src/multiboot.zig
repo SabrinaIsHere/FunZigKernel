@@ -6,6 +6,7 @@ const Console = IO.Console;
 
 /// Magic number to make the binary mb2 compliant
 const MB_HEADER_MAGIC = 0xE85250D6;
+//const MB_HEADER_MAGIC = 0xD65052E8;
 /// Architecture flag; Defines this as x86 32 bit
 const MB_ARCHITECTURE = 0x0;
 

@@ -1,11 +1,16 @@
-const main = @import("main.zig");
+//! 32 bit code called by grub
 
-var stack_bytes: [16 * 1024]u8 align(16) linksection(".bss") = undefined;
+const main = @import("main.zig");
+const Multiboot = @import("multiboot.zig");
+const arch = @import("arch/x86_32/arch.zig");
+const Console = arch.Console;
+
+var stack_bytes_32: [16 * 1024]u8 align(16) linksection(".bootbss") = undefined;
 
 // TODO: Bootstrap into long mode
 
 /// Called by grub, 32 bit code that bootstraps into long mode before calling into the kernel
-export fn _bootstrap() linksection(".bootstrap") callconv(.naked) void {
+export fn _start() linksection(".boottext") callconv(.naked) void {
     asm volatile (
         \\ movl %[stack_top], %%esp
         \\ movl %%esp, %%ebp
@@ -25,8 +30,17 @@ export fn _bootstrap() linksection(".bootstrap") callconv(.naked) void {
         // extra steps to compute the address at runtime (especially in Debug mode),
         // which could possibly clobber registers that are specified by multiboot
         // to hold special values (e.g. EAX).
-        : [stack_top] "i" (stack_bytes[stack_bytes.len..].ptr),
+        : [stack_top] "i" (stack_bytes_32[stack_bytes_32.len..].ptr),
           // We let the compiler handle the reference to kmain by passing it as an input operand as well.
-          [kmain] "X" (&main.kmain),
+          [kmain] "X" (&bootstrapMain),
     );
+}
+
+pub noinline fn bootstrapMain(multiboot_magic: u32, multiboot_info: *Multiboot.MultibootInfo) linksection(".boottext") callconv(.c) noreturn {
+    Console.init();
+    Console.print("Entry loaded\n", .{});
+    Multiboot.init(multiboot_magic, multiboot_info);
+    while (true) {
+        asm volatile ("hlt");
+    }
 }
