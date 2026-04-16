@@ -1,9 +1,12 @@
 //! 32 bit code called by grub
 
 const main = @import("main.zig");
-const Multiboot = @import("multiboot.zig");
 const arch = @import("arch/x86_32/arch.zig");
+const GDT = arch.GDT;
 const Console = arch.Console;
+// If this isn't included neither is the multiboot header. Don't call into any functions
+// from 32 bit it'll error out.
+const Multiboot = @import("multiboot.zig");
 
 var stack_bytes_32: [16 * 1024]u8 align(16) linksection(".bootbss") = undefined;
 
@@ -21,25 +24,23 @@ export fn _start() linksection(".boottext") callconv(.naked) void {
         \\ pushl %%eax
         \\ call %[kmain:P]
         :
-        // The stack grows downwards on x86, so we need to point ESP register
-        // to one element past the end of `stack_bytes`.
-        //
-        // Finally, we pass the whole expression as an input operand with the
-        // "immediate" constraint to force the compiler to encode this as an
-        // absolute address. This prevents the compiler from doing unnecessary
-        // extra steps to compute the address at runtime (especially in Debug mode),
-        // which could possibly clobber registers that are specified by multiboot
-        // to hold special values (e.g. EAX).
         : [stack_top] "i" (stack_bytes_32[stack_bytes_32.len..].ptr),
-          // We let the compiler handle the reference to kmain by passing it as an input operand as well.
           [kmain] "X" (&bootstrapMain),
     );
 }
 
+/// Called into by _start. Calls hardware initialization functions and jumps to 64 bit
 pub noinline fn bootstrapMain(multiboot_magic: u32, multiboot_info: *Multiboot.MultibootInfo) linksection(".boottext") callconv(.c) noreturn {
+    _ = multiboot_magic;
+    _ = multiboot_info;
     Console.init();
     Console.print("Entry loaded\n", .{});
-    Multiboot.init(multiboot_magic, multiboot_info);
+    // Check for long mode via cpuid
+    // Enable A20 line
+    // Set up paging
+    // Set up gdt
+    GDT.init();
+    // Jump to 64 bit code
     while (true) {
         asm volatile ("hlt");
     }

@@ -15,6 +15,8 @@ pub const MB2_ID_NUMBER: u32 = 0x36d76289;
 const HeaderTagType = enum(u16) {
     END,
     INFORMATION_REQUEST,
+    FLAGS = 4,
+    FRAMEBUFFER = 5,
 };
 
 const InfoTagType = enum(u32) {
@@ -49,9 +51,13 @@ const MultibootHeader = extern struct {
     header_length: u32 = @sizeOf(MultibootHeader),
     checksum: u32,
     //info_tag: MultibootHeaderTagInfoRequest = MultibootHeaderTagInfoRequest{},
+    flags_tag: MultibootHeaderTagFlags = MultibootHeaderTagFlags{},
+    framebuffer_tag: MultibootHeaderTagFramebuffer = MultibootHeaderTagFramebuffer{},
     end_tag: MultibootHeaderTagEnd = MultibootHeaderTagEnd{},
 };
 
+/// Tag in the mb header at the beginning of the kernel file
+/// Requests info from the bootloader
 const MultibootHeaderTagInfoRequest = extern struct {
     type: HeaderTagType = HeaderTagType.INFORMATION_REQUEST,
     flags: u16 = 0,
@@ -64,6 +70,28 @@ const MultibootHeaderTagInfoRequest = extern struct {
     acpi_new_request: u32 = 15,
 };
 
+const MultibootHeaderTagFlags = extern struct {
+    type: HeaderTagType = HeaderTagType.FLAGS,
+    flags: u16 = 0,
+    size: u32 = @sizeOf(MultibootHeaderTagFlags),
+    console_flags: u32 = 1,
+    padding: u32 = 0,
+};
+
+/// Tag in the mb header at the beginning of the kernel file
+/// Specifies data about the framebuffer
+const MultibootHeaderTagFramebuffer = extern struct {
+    type: HeaderTagType = HeaderTagType.FRAMEBUFFER,
+    flags: u16 = 0,
+    size: u32 = @sizeOf(MultibootHeaderTagFramebuffer),
+    width: u32 = 0,
+    height: u32 = 0,
+    depth: u32 = 0,
+    padding: u32 = 0,
+};
+
+/// Tag in the mb header at the beginning of the kernel file
+/// Ends the tag structure
 const MultibootHeaderTagEnd = extern struct {
     type: u32 = @intFromEnum(HeaderTagType.END),
     size: u32 = @sizeOf(MultibootHeaderTagEnd),

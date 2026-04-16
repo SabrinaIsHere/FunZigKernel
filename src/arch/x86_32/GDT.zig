@@ -1,11 +1,9 @@
 const native_endian = @import("builtin").target.cpu.arch.endian();
-const std = @import("std");
-const expectEqual = std.testing.expectEqual;
 const arch = @import("arch.zig");
 const Console = arch.Console;
 
 /// Base address of the GDT table
-var GDT: [6]GDTEntry = undefined;
+var GDT: [6]GDTEntry linksection(".bootdata") = undefined;
 
 // TODO: Set granularity
 
@@ -44,11 +42,11 @@ const GDTRt = packed struct {
     base: u32,
 };
 
-var gdtr: GDTRt = undefined;
+var gdtr: GDTRt linksection(".bootdata") = undefined;
 
 /// Tells the processor where the GDT is
 /// base: pointer to GDT[0], limit: number of entries
-fn loadGDT(base: *GDTEntry, limit: u8) void {
+fn loadGDT(base: *GDTEntry, limit: u8) linksection(".boottext") void {
     // LGDT wants a pointer to a 6 byte region of memory with the base and length of the gdt
     gdtr = .{
         .limit = limit * @sizeOf(GDTEntry),
@@ -61,7 +59,7 @@ fn loadGDT(base: *GDTEntry, limit: u8) void {
 }
 
 /// sgdt gets the data in the GDTR
-fn storeGDT() GDTRt {
+fn storeGDT() linksection(".boottext") GDTRt {
     var data = GDTRt{ .limit = 0, .base = 0 };
     asm volatile ("sgdt %[data]"
         : [data] "=m" (data),
@@ -78,7 +76,7 @@ pub const TSS_SEGMENT = 0x5;
 
 /// Functin the kernel calls into to initialize the GDT
 /// This should NEVER be called without interrupts being disabled!
-pub fn init() void {
+pub fn init() linksection(".boottext") void {
     arch.disableInterrupts();
     GDT[NULL_SEGMENT].init(0x0, 0x0, 0x0, 0x0);
     GDT[K_CODE_SEGMENT].init(0xFFFFF, 0x0, 0x9A, 0xC);
@@ -91,7 +89,7 @@ pub fn init() void {
     runtimeTests();
 }
 
-fn runtimeTests() void {
+fn runtimeTests() linksection(".boottext") void {
     const GDTRegister = storeGDT();
     if (GDTRegister.limit / @sizeOf(GDTEntry) != 6) {
         Console.print(

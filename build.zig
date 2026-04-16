@@ -87,6 +87,8 @@ pub fn build(b: *std.Build) !void {
         .root_module = bootstrap_module,
     });
     // Cursed. bs_wf is an area in the zig cache for me to operate on the bin file
+    // TODO: I'm pretty sure there's a way to do this with a zig ObjCopy, I'm not entirely sure
+    // what std.elf thing I'm meant to use though
     const bs_wf = b.addNamedWriteFiles("bs");
     bs_wf.step.dependOn(&bootstrap.step);
     const bs_bin32 = bs_wf.addCopyFile(bootstrap.getEmittedBin(), "bs32.o");
@@ -143,6 +145,7 @@ pub fn build(b: *std.Build) !void {
         "--no-reboot",
         "--no-shutdown",
         "-net", "none",
+        "-serial", "mon:stdio",
         "-drive", "if=pflash,format=raw,unit=0,file=./ovmf/OVMF_CODE.fd,readonly=on", // For acpi 2.0+
         "-drive", "if=pflash,format=raw,unit=1,file=./ovmf/OVMF_VARS.fd", // For acpi 2.0+
         "-cdrom", "kernel.iso",

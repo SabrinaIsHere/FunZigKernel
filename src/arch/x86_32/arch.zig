@@ -1,10 +1,7 @@
 //! Got this from https://github.com/ZystemOS/pluto/blob/develop/src/kernel/arch/x86/arch.zig
 
-const GDT = @import("GDT.zig");
-const IDT = @import("IDT.zig");
-const ISR = @import("ISR.zig");
-const Cpuid = @import("cpuid.zig");
-const Apic = @import("apic.zig");
+pub const GDT = @import("GDT.zig");
+pub const Cpuid = @import("cpuid.zig");
 pub const Console = @import("console.zig");
 
 // General purpose registers
@@ -42,19 +39,9 @@ pub const Registers = packed struct {
     }
 };
 
-/// Initializes architecture specific things like the GDT and IDT
-pub fn init() void {
-    disableInterrupts();
-    GDT.init();
-    IDT.init();
-    Cpuid.init();
-    //Apic.init(); // NOTE: This probably needs to go with the acpi stuff
-    // This reenables interrupts
-    ISR.init();
-}
-
-/// Wrapper for the x86 assembly instruction 'inb'
-pub fn in(comptime Type: type, port: u16) Type {
+/// Wrapper for the x86 assembly instruction 'inb', asserts 8 bit type input
+/// Anything returning Type needs to be title case according to the zig style guide
+pub fn In(comptime Type: type, port: u16) linksection(".boottext") Type {
     return switch (Type) {
         u8 => asm volatile ("inb %[port], %[result]"
             : [result] "={al}" (-> Type),
@@ -72,8 +59,9 @@ pub fn in(comptime Type: type, port: u16) Type {
     };
 }
 
-/// Wrapper for the x86 assembly instruction 'outb'
-pub fn out(port: u16, val: anytype) void {
+/// Wrapper for the x86 assembly instruction 'outb', asserts 8 bit type input
+/// Anything returning Type needs to be title case according to the zig style guide
+pub fn Out(port: u16, val: anytype) linksection(".boottext") void {
     switch (@TypeOf(val)) {
         u8 => asm volatile ("outb %[val], %[port]"
             :
@@ -94,29 +82,18 @@ pub fn out(port: u16, val: anytype) void {
     }
 }
 
-// Enable interrupts
-pub fn enableInterrupts() void {
-    asm volatile ("sti");
-}
-
 // Disable interrupts
-pub fn disableInterrupts() void {
+pub fn disableInterrupts() linksection(".boottext") void {
     asm volatile ("cli");
 }
 
 /// Halt the processor
-pub fn hlt() void {
+pub fn hlt() linksection(".boottext") void {
     asm volatile ("hlt");
 }
 
-/// Halt the cpu but allow interrupts
-pub fn wait() noreturn {
-    enableInterrupts();
-    while (true) hlt();
-}
-
 /// Kernel panic; disable interrupts and halt the cpu
-pub fn k_panic(comptime msg: []const u8) noreturn {
+pub fn k_panic(comptime msg: []const u8) linksection(".boottext") noreturn {
     disableInterrupts();
     Console.print("kpanic: ", .{});
     Console.print(msg, .{});

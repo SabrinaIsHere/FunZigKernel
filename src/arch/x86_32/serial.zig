@@ -4,8 +4,8 @@
 const std = @import("std");
 const native_endian = @import("builtin").target.cpu.arch.endian();
 const arch = @import("arch.zig");
-const in = arch.in;
-const out = arch.out;
+const In = arch.In;
+const Out = arch.Out;
 
 const SerialError = error{
     Timeout,
@@ -16,7 +16,7 @@ const SerialError = error{
 const SyncSerialPort = struct {
     port: u16,
     /// Initializes and tests this serial port using 8N1
-    pub fn init(com: u16) !SyncSerialPort {
+    pub fn init(com: u16) linksection(".boottext") !SyncSerialPort {
         // TODO: look into the default baud, this is a placeholder
         // TODO: hardware handshaking? if I ever need it
         var self = SyncSerialPort{
@@ -25,90 +25,90 @@ const SyncSerialPort = struct {
 
         self.setBaud(10);
         // Disable interrupts
-        out(com + 1, @as(u8, 0));
+        Out(com + 1, @as(u8, 0));
         // Character length of 8, 1 stop bit, 0 parity bits
         // Typically for text you use 7 bit length but I don't want the headache in case I wanna send
         // numbers
-        out(com + 3, @as(u8, 0b00000011));
+        Out(com + 3, @as(u8, 0b00000011));
         // Enable loopback and test functionality
-        out(com + 4, @as(u8, 0b00010000));
+        Out(com + 4, @as(u8, 0b00010000));
         self.write('t') catch return SerialError.NonfunctionalPort;
         if ((self.read() catch return SerialError.NonfunctionalPort) != 't') return SerialError.NonfunctionalPort;
-        out(com + 4, @as(u8, 0b0));
+        Out(com + 4, @as(u8, 0b0));
 
         return self;
     }
 
     /// Uses DLAB bit to set the divisor register and control the transmission rate
-    pub fn setBaud(self: SyncSerialPort, divisor: u16) void {
+    pub fn setBaud(self: SyncSerialPort, divisor: u16) linksection(".boottext") void {
         // TODO: Maybe I should save and restore port + 0 and port + 1? idk
         // Set DLAB bit
-        out(self.port + 3, @as(u8, 0b10000000));
+        Out(self.port + 3, @as(u8, 0b10000000));
         // Port + 0 = lsbyte
         const lsbyte: u8 = switch (native_endian) {
             .big => @truncate(divisor >> 8),
             .little => @truncate(divisor),
         };
-        out(self.port + 0, lsbyte);
+        Out(self.port + 0, lsbyte);
         // Port + 1 = msbyte
         const msbyte: u8 = switch (native_endian) {
             .big => @truncate(divisor),
             .little => @truncate(divisor >> 8),
         };
-        out(self.port + 1, msbyte);
+        Out(self.port + 1, msbyte);
         // Clear DLAB bit
-        out(self.port + 3, @as(u8, 0b0));
+        Out(self.port + 3, @as(u8, 0b0));
     }
 
     /// Reads a byte from the serial port. Will time out if it waits longer than .5 seconds
-    pub fn read(self: *volatile SyncSerialPort) !u8 {
+    pub fn read(self: *volatile SyncSerialPort) linksection(".boottext") !u8 {
         // Check the data ready field in line status
         // TODO: Proper timeout
 
         // Basic approximation of delta for now
-        var lineStatus = in(u8, self.port + 5);
+        var lineStatus = In(u8, self.port + 5);
         var i: u16 = 0;
         while (lineStatus & 0b01000000 == 0) {
             if (i >= 100000000) return SerialError.Timeout;
-            lineStatus = in(u8, self.port + 5);
+            lineStatus = In(u8, self.port + 5);
             i += 1;
         }
-        return in(u8, self.port + 0);
+        return In(u8, self.port + 0);
     }
 
     /// Writes a byte to the serial port. Will time out if it waits longer than .5 seconds
-    pub fn write(self: SyncSerialPort, char: u8) !void {
+    pub fn write(self: SyncSerialPort, char: u8) linksection(".boottext") !void {
         // Check the transmitter holding register empty field in line status
         // TODO: Proper timeout
 
         // Basic approximation of delta for now
-        var lineStatus = in(u8, self.port + 5);
+        var lineStatus = In(u8, self.port + 5);
         var i: u16 = 0;
         while (lineStatus & 0b01000000 == 0) {
             if (i >= 100000000) return SerialError.Timeout;
-            lineStatus = in(u8, self.port + 5);
+            lineStatus = In(u8, self.port + 5);
             i += 1;
         }
-        out(self.port + 0, char);
+        Out(self.port + 0, char);
     }
 };
 
-// Common port locations to check, although it'll almost certainly be the first
-const COM1: u16 = 0x3F8;
-var port: SyncSerialPort = undefined;
+// TODO: Logic for multiple ports
+const COM1: u16 linksection(".bootrodata") = 0x3F8;
+var port: SyncSerialPort linksection(".bootdata") = undefined;
 
 /// Finds and remembers functional serial port
-pub fn init() !void {
+pub fn init() linksection(".boottext") !void {
     port = try SyncSerialPort.init(COM1);
 }
 
 /// Loops over input and prints it. Quietly ignores errors since this is largely for logging
-pub fn printString(str: []const u8) void {
+pub fn printString(str: []const u8) linksection(".boottext") void {
     for (str) |c| port.write(c) catch return;
 }
 
 /// Drains buffer
-fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) !usize {
+fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) linksection(".boottext") !usize {
     // the length of data must not be zero
     std.debug.assert(data.len != 0);
 
@@ -143,7 +143,7 @@ fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) !usize {
 }
 
 /// Returns std.Io.Writer implementation for this console
-pub fn writer(buffer: []u8) std.Io.Writer {
+pub fn writer(buffer: []u8) linksection(".boottext") std.Io.Writer {
     return .{
         .buffer = buffer,
         .end = 0,
@@ -154,7 +154,7 @@ pub fn writer(buffer: []u8) std.Io.Writer {
 }
 
 /// Standard printing with format
-pub fn print(comptime fmt: []const u8, args: anytype) void {
+pub fn print(comptime fmt: []const u8, args: anytype) linksection(".boottext") void {
     var w = writer(&.{});
     w.print(fmt, args) catch return;
 }
