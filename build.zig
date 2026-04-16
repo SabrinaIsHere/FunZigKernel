@@ -123,7 +123,7 @@ pub fn build(b: *std.Build) !void {
     // Cache area to generate the kernel.iso. Qemu directly launches from here so the iso creation
     // is kind of vestigial
     const wf = b.addNamedWriteFiles("isodir");
-    _ = wf.addCopyFile(kernel.getEmittedBin(), "boot/kernel.elf");
+    _ = wf.addCopyFile(exe.getEmittedBin(), "boot/kernel.elf");
     _ = wf.addCopyFile(b.path("grub.cfg"), "boot/grub/grub.cfg");
     wf.step.dependOn(b.getInstallStep());
     const mk_iso_cmd = b.addSystemCommand(&[_][]const u8{

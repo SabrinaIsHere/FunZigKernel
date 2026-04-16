@@ -9,8 +9,9 @@ KERNEL_VMA = 256M;
 /* Tell where the various sections of the object files will be put in the
    final kernel image. */
 SECTIONS {
-	. = KERNEL_LMA;
+	/*. = KERNEL_LMA;*/
 
+    . = 0x0;
     .boottext : {
 		KEEP(*(.multiboot))
 		bs64.o (.text)
@@ -26,7 +27,7 @@ SECTIONS {
 	}
 
     /* Virtual address of the kernel */
-	. = KERNEL_VMA;
+	. = 2M;
     
     .text : AT(ADDR(.text) - KERNEL_VMA) {
 		_code = .;
