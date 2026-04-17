@@ -2,14 +2,16 @@
    designated as the entry point. */
 ENTRY(_start)
 
+/* TODO: Get higher half working */
+
 KERNEL_LMA = 2M;
 /* This may need to be changed later */
-KERNEL_VMA = 256M;
+KERNEL_VMA = 3M;
 
 /* Tell where the various sections of the object files will be put in the
    final kernel image. */
 SECTIONS {
-	. = KERNEL_LMA;
+	. = 2M;
 
     .boottext : {
 		KEEP(*(.multiboot))
@@ -29,7 +31,7 @@ SECTIONS {
 	}
 
     /* Virtual address of the kernel */
-	. = KERNEL_VMA;
+	. += 4M;
     
     .text : AT(ADDR(.text) - KERNEL_VMA) {
 		_code = .;

@@ -9,6 +9,7 @@ pub fn build(b: *std.Build) !void {
     const gdb = b.option(bool, "gdb", "Debug with GDB") orelse false;
     const log = b.option(bool, "log", "Enable Qemu logs") orelse false;
     const graphical = b.option(bool, "graphical", "Enable graphical Qemu output") orelse false;
+    const shutdown = b.option(bool, "shutdown", "Allow/disallow qemu to shut down") orelse false;
     const emit_asm = b.option(bool, "asm", "Emit kernel.s") orelse false;
     //const mem = b.option(u32, "mem", "Define the number megabytes of memory available") orelse 1024;
     //const smp = b.option(u8, "smp", "Define the number of processors available") orelse 1;
@@ -100,7 +101,7 @@ pub fn build(b: *std.Build) !void {
     bootstrap_64_cmd.addFileArg(bs_bin64);
     bootstrap_64_cmd.step.dependOn(&bootstrap.step);
     const kernel = b.addObject(.{
-        .name = "kernel",
+        .name = "kernel64",
         .root_module = kernel_module,
     });
     kernel.step.dependOn(&bootstrap_64_cmd.step);
@@ -120,6 +121,8 @@ pub fn build(b: *std.Build) !void {
     }
     // Install the elf
     exe.setLinkerScript(b.path("src/linker.ld"));
+    exe.linkage = .static;
+    exe.link_z_max_page_size = 4096;
     b.installArtifact(exe);
 
     // Cache area to generate the kernel.iso. Qemu directly launches from here so the iso creation
@@ -143,9 +146,9 @@ pub fn build(b: *std.Build) !void {
         "-m", "1G",
         "-smp", "1",
         "--no-reboot",
-        "--no-shutdown",
         "-net", "none",
         "-serial", "mon:stdio",
+        //"-vga", "std",
         "-drive", "if=pflash,format=raw,unit=0,file=./ovmf/OVMF_CODE.fd,readonly=on", // For acpi 2.0+
         "-drive", "if=pflash,format=raw,unit=1,file=./ovmf/OVMF_VARS.fd", // For acpi 2.0+
         "-cdrom", "kernel.iso",
@@ -155,6 +158,7 @@ pub fn build(b: *std.Build) !void {
     qemu_cmd.addArg("-drive");
     qemu_cmd.addPrefixedFileArg("format=raw,file=fat:rw:", wf.getDirectory());
     if (gdb) qemu_cmd.addArgs(&[_][]const u8 {"-S", "-s"});
+    if (!shutdown) qemu_cmd.addArg("--no-shutdown");
     if (log) {
         qemu_cmd.addArgs(&[_][]const u8 {"-D", "./qemu.log", "-d", "int"});
     } else {

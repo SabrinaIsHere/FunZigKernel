@@ -3,7 +3,6 @@
 const main = @import("main.zig");
 const arch = @import("arch/x86_32/arch.zig");
 const GDT = arch.GDT;
-const Console = arch.Console;
 // If this isn't included neither is the multiboot header. Don't call into any functions
 // from 32 bit it'll error out.
 const Multiboot = @import("multiboot.zig");
@@ -29,13 +28,13 @@ export fn _start() linksection(".boottext") callconv(.naked) void {
     );
 }
 
+const entry_msg: []const u8 linksection(".bootrodata") = "Entry loaded\n";
+
 /// Called into by _start. Calls hardware initialization functions and jumps to 64 bit
 pub noinline fn bootstrapMain(multiboot_magic: u32, multiboot_info: *Multiboot.MultibootInfo) linksection(".boottext") callconv(.c) noreturn {
     _ = multiboot_magic;
     _ = multiboot_info;
-    Console.init();
-    Console.print("Entry loaded\n", .{});
-    // Check for long mode via cpuid
+    // Check for long mode
     // Enable A20 line
     // Set up paging
     // Set up gdt

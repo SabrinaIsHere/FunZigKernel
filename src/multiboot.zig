@@ -44,6 +44,8 @@ const InfoTagType = enum(u32) {
     LOAD_BASE_ADDR,
 };
 
+// NOTE: Framebuffer stuff needs to wait until I'm done with EGA text mode (have a driver)
+
 /// https://www.gnu.org/software/grub/manual/multiboot/multiboot.html#Header-layout
 const MultibootHeader = extern struct {
     magic: u32 = MB_HEADER_MAGIC,
@@ -51,7 +53,7 @@ const MultibootHeader = extern struct {
     header_length: u32 = @sizeOf(MultibootHeader),
     checksum: u32,
     //info_tag: MultibootHeaderTagInfoRequest = MultibootHeaderTagInfoRequest{},
-    flags_tag: MultibootHeaderTagFlags = MultibootHeaderTagFlags{},
+    //flags_tag: MultibootHeaderTagFlags = MultibootHeaderTagFlags{},
     framebuffer_tag: MultibootHeaderTagFramebuffer = MultibootHeaderTagFramebuffer{},
     end_tag: MultibootHeaderTagEnd = MultibootHeaderTagEnd{},
 };
@@ -74,7 +76,7 @@ const MultibootHeaderTagFlags = extern struct {
     type: HeaderTagType = HeaderTagType.FLAGS,
     flags: u16 = 0,
     size: u32 = @sizeOf(MultibootHeaderTagFlags),
-    console_flags: u32 = 1,
+    console_flags: u32 = 0b00,
     padding: u32 = 0,
 };
 
@@ -84,9 +86,9 @@ const MultibootHeaderTagFramebuffer = extern struct {
     type: HeaderTagType = HeaderTagType.FRAMEBUFFER,
     flags: u16 = 0,
     size: u32 = @sizeOf(MultibootHeaderTagFramebuffer),
-    width: u32 = 0,
-    height: u32 = 0,
-    depth: u32 = 0,
+    idth: u32 = 1024,
+    eight: u32 = 768,
+    epth: u32 = 32,
     padding: u32 = 0,
 };
 
