@@ -4,7 +4,7 @@
 const IO = @import("io/io.zig");
 const Console = IO.Console;
 const Serial = @import("drivers/data/serial.zig");
-const arch = @import("arch/arch.zig").arch;
+//const arch = @import("arch/arch.zig").arch;
 const Multiboot = @import("multiboot.zig");
 
 // We use noinline to make sure it don't get inlined by compiler
@@ -14,7 +14,7 @@ pub noinline fn kmain(multiboot_magic: u32, multiboot_info: *Multiboot.Multiboot
     Console.print("Kernel loaded\n", .{});
     Multiboot.init(multiboot_magic, multiboot_info);
     // Initialize architecture stuff
-    arch.init();
+    //arch.init();
     // Loop forever as there is nothing to do
     while (true) {
         asm volatile ("hlt");

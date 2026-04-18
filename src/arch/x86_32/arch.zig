@@ -3,6 +3,7 @@
 pub const GDT = @import("GDT.zig");
 pub const Cpuid = @import("cpuid.zig");
 pub const Console = @import("console.zig");
+pub const Paging = @import("paging.zig");
 
 // General purpose registers
 pub const Registers = packed struct {
@@ -98,4 +99,49 @@ pub fn k_panic(comptime msg: []const u8) linksection(".boottext") noreturn {
     Console.print("kpanic: ", .{});
     Console.print(msg, .{});
     while (true) hlt();
+}
+
+pub inline fn setPAEEnabled() linksection(".boottext") void {
+    asm volatile (
+        \\ movl %%cr4, edx
+        \\ orl %%edx, $(1 << 5)
+        \\ movl %%edx, %%cr4
+    );
+}
+
+pub inline fn setLMBit() linksection(".boottext") void {
+    // Set the long mode bit
+    asm volatile (
+        \\ movl $0xC0000080, %%ecx
+        \\ rdmsr
+        \\ or %%eax, (1 << 9)
+        \\ wrmsr
+    );
+}
+
+pub inline fn enablePaging() linksection(".boottext") void {
+    asm volatile (
+        \\ movl %%cr0, %%eax
+        \\ or %%eax, (1 << 31) | (1 << 0)
+        \\ movl %%eax, %%cr0
+    );
+}
+
+pub inline fn reloadSegmentRegs() linksection(".boottext") void {
+    // NOTE: This probably won't work
+    asm volatile (
+        \\ movw $1, %%ax
+        \\ movw %%ax, %%ds
+        \\ movw %%ax, %%es
+        \\ movw %%ax, %%fs
+        \\ movw %%ax, %%gs
+    );
+}
+
+pub inline fn setPML4(pml4: *Paging.PML4E) void {
+    asm volatile (
+        \\ movl %%eax, %%cr4
+        :
+        : [pml4] "{eax}" (pml4),
+    );
 }

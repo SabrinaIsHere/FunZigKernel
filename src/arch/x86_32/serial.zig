@@ -1,8 +1,6 @@
 //! Driver implementing polling serial for debugging purposes pre-interrupt implementation
 //! This does not work. Leaving it here in case I need to use it for something
 
-// NOTE: This is erroring out
-
 const std = @import("std");
 const native_endian = @import("builtin").target.cpu.arch.endian();
 const arch = @import("arch.zig");
@@ -109,22 +107,17 @@ var port: SyncSerialPort linksection(".bootdata") = SyncSerialPort{ .port = 0 };
 
 /// Finds and remembers functional serial port
 pub fn init() linksection(".boottext") !void {
-    // NOTE: Errors here
     //for (PORTS) |p| {
     //    port.init(p) catch continue;
     //    return;
     //}
 
-    //asm volatile ("hlt");
-
     //return SerialError.NonfunctionalPort;
-
     port.init(0x3F8) catch asm volatile ("hlt");
 }
 
 /// Loops over input and prints it. Quietly ignores errors since this is largely for logging
 pub fn printString(str: []const u8) linksection(".boottext") void {
-    // Return triggers interrupt, hlt doesn't
     for (str) |c| port.write(c) catch continue;
 }
 

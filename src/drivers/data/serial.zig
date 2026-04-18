@@ -3,7 +3,7 @@
 
 const std = @import("std");
 const native_endian = @import("builtin").target.cpu.arch.endian();
-const arch = @import("../../arch/x86_32/arch.zig");
+const arch = @import("../../arch/x86_64/arch.zig");
 const in = arch.in;
 const out = arch.out;
 
