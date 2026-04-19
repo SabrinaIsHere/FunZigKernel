@@ -2,8 +2,36 @@ const native_endian = @import("builtin").target.cpu.arch.endian();
 const arch = @import("arch.zig");
 const Console = arch.Console;
 
-/// Base address of the GDT table
-var GDT: [6]GDTEntry linksection(".bootdata") = undefined;
+// Base address of the GDT table
+pub const GDT: [3]GDTEntry linksection(".bootrodata") = [_]GDTEntry{
+    GDTEntry{
+        .limit1 = 0,
+        .base1 = 0,
+        .base2 = 0,
+        .access = 0,
+        .limit2 = 0,
+        .flags = 0,
+        .base3 = 0,
+    },
+    GDTEntry{
+        .limit1 = 0xFFFF,
+        .base1 = 0x0,
+        .base2 = 0x0,
+        .access = 0b10011010,
+        .limit2 = 0xF,
+        .flags = 0b1010,
+        .base3 = 0x0,
+    },
+    GDTEntry{
+        .limit1 = 0xFFFF,
+        .base1 = 0x0,
+        .base2 = 0x0,
+        .access = 0b10010010,
+        .limit2 = 0xF,
+        .flags = 0b1100,
+        .base3 = 0x0,
+    },
+};
 
 // TODO: Set granularity
 
@@ -20,14 +48,17 @@ const GDTEntry = packed struct(u64) {
     base3: u8,
 
     /// Initialize the GDT entry at the given address. Abstract away the weirdness
-    pub fn init(self: *GDTEntry, limit: u20, base: u32, access: u8, flags: u4) linksection(".boottext") void {
-        self.limit1 = @truncate((limit & 0x0FFFF));
-        self.limit2 = @truncate((limit & 0xF0000) >> 16);
-        self.base1 = @truncate((base & 0x0000FFFF));
-        self.base2 = @truncate((base & 0x00FF0000) >> 16);
-        self.base3 = @truncate((base & 0xFF000000) >> 24);
-        self.access = access;
-        self.flags = flags;
+    pub inline fn init(self: *GDTEntry, limit: u20, base: u32, access: u8, flags: u4) linksection(".boottext") void {
+        // BUG: Maybe truncate is linked with the 64 bit stuff and calling it isn't working
+        comptime {
+            self.limit1 = @truncate((limit & 0x0FFFF));
+            self.limit2 = @truncate((limit & 0xF0000) >> 16);
+            self.base1 = @truncate((base & 0x0000FFFF));
+            self.base2 = @truncate((base & 0x00FF0000) >> 16);
+            self.base3 = @truncate((base & 0xFF000000) >> 24);
+            self.access = access;
+            self.flags = flags;
+        }
     }
 
     pub fn print(self: *GDTEntry) linksection(".boottext") void {
@@ -39,22 +70,21 @@ const GDTEntry = packed struct(u64) {
 /// Global storing GDT information. Processor pointed at this to load the GDT
 const GDTRt = packed struct {
     limit: u16,
-    base: u64,
+    padding: u32,
+    base: *const GDTEntry,
 };
 
-var gdtr: GDTRt linksection(".bootdata") = undefined;
+var gdtr: GDTRt linksection(".bootdata") = GDTRt{
+    .limit = 3 * @sizeOf(GDTEntry),
+    .padding = 0,
+    .base = &GDT[0],
+};
 
 /// Tells the processor where the GDT is
-/// base: pointer to GDT[0], limit: number of entries
-fn loadGDT(base: *GDTEntry, limit: u8) linksection(".boottext") void {
-    // LGDT wants a pointer to a 6 byte region of memory with the base and length of the gdt
-    gdtr = .{
-        .limit = limit * @sizeOf(GDTEntry),
-        .base = @intFromPtr(base),
-    };
-    asm volatile ("lgdt (%[gdtr])"
+inline fn loadGDT() linksection(".boottext") void {
+    asm volatile ("lgdt %[gdtr]"
         :
-        : [gdtr] "{eax}" (&gdtr),
+        : [gdtr] "m" (&gdtr),
     );
 }
 
@@ -67,17 +97,11 @@ fn storeGDT() linksection(".boottext") GDTRt {
     return data;
 }
 
-pub const NULL_SEGMENT = 0x0;
-pub const CODE_SEGMENT = 0x1;
-pub const DATA_SEGMENT = 0x2;
-
 /// Functin the kernel calls into to initialize the GDT
 /// This should NEVER be called without interrupts being disabled!
-pub fn init() linksection(".boottext") void {
+/// Inline in case returning screws things up when I need to jump to 64 bit
+/// init() is ignored because it depends on @truncate(), which errors out because it's linked with the 64 bit stuff
+pub inline fn init() linksection(".boottext") void {
     arch.disableInterrupts();
-    GDT[NULL_SEGMENT].init(0x0, 0x0, 0x0, 0x0);
-    // NOTE: If there are weird errors this might be wrong
-    GDT[CODE_SEGMENT].init(0xFFFFF, 0x0, 0b10011010, 0b1010);
-    GDT[DATA_SEGMENT].init(0xFFFFF, 0x0, 0b10010010, 0b1100);
-    loadGDT(&GDT[0], 6);
+    loadGDT();
 }

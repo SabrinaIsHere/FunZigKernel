@@ -8,7 +8,8 @@ const Serial = @import("drivers/data/serial.zig");
 const Multiboot = @import("multiboot.zig");
 
 // We use noinline to make sure it don't get inlined by compiler
-pub noinline fn kmain(multiboot_magic: u32, multiboot_info: *Multiboot.MultibootInfo) callconv(.c) noreturn {
+// Linked to kmain because I need a predetermined address to long jump to
+export fn kmain(multiboot_magic: u32, multiboot_info: *Multiboot.MultibootInfo) linksection(".kmain") callconv(.c) noreturn {
     // Initialize VGA and serial driver
     Console.init();
     Console.print("Kernel loaded\n", .{});

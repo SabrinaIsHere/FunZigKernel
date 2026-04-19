@@ -4,6 +4,20 @@ const std = @import("std");
 
 // Gonna be real, zig build system is worse than makefiles almost purely because of how badly documented it is
 
+/// https://codeberg.org/raddari/zig-nasm-lib/src/branch/main/build.zig
+pub fn addNasm(b: *std.Build, compile: *std.Build.Step.Compile, file: std.Build.LazyPath, format: []const u8) void {
+    const wf = b.addWriteFiles();
+    const nasm = b.addSystemCommand(&.{"nasm"});
+    nasm.addArg("-f");
+    nasm.addArg(format);
+    const out = wf.getDirectory().path(b, "asm.o");
+    nasm.addArg("-o");
+    nasm.addFileArg(out);
+    nasm.addFileArg(file);
+    compile.step.dependOn(&nasm.step);
+    compile.addObjectFile(out);
+}
+
 /// Build the project
 pub fn build(b: *std.Build) !void {
     const gdb = b.option(bool, "gdb", "Debug with GDB") orelse false;
@@ -75,6 +89,7 @@ pub fn build(b: *std.Build) !void {
             },
         },
     });
+    //bootstrap_module.addAssemblyFile(b.path("src/entry.S"));
     // Final executable loaded by grub
     const exe_module = b.createModule(.{
         .target = target_64,
@@ -87,6 +102,7 @@ pub fn build(b: *std.Build) !void {
         .name = "bs",
         .root_module = bootstrap_module,
     });
+    bootstrap.pie = false;
     // Cursed. bs_wf is an area in the zig cache for me to operate on the bin file
     // TODO: I'm pretty sure there's a way to do this with a zig ObjCopy, I'm not entirely sure
     // what std.elf thing I'm meant to use though
@@ -113,6 +129,8 @@ pub fn build(b: *std.Build) !void {
         .root_module = exe_module,
     });
     exe.step.dependOn(&kernel.step);
+    addNasm(b, exe, b.path("src/entry.S"), "elf64");
+    exe.entry = .enabled;
     // So I can double check compiler output is what I think it is if I need to
     // NOTE: Not working
     if (emit_asm) {

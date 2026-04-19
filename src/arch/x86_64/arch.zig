@@ -59,15 +59,15 @@ pub fn in(comptime Type: type, port: u16) Type {
     return switch (Type) {
         u8 => asm volatile ("inb %[port], %[result]"
             : [result] "={al}" (-> Type),
-            : [port] "N{dx}" (port),
+            : [port] "{dx}" (port),
         ),
         u16 => asm volatile ("inw %[port], %[result]"
             : [result] "={ax}" (-> Type),
-            : [port] "N{dx}" (port),
+            : [port] "{dx}" (port),
         ),
         u32 => asm volatile ("inl %[port], %[result]"
             : [result] "={eax}" (-> Type),
-            : [port] "N{dx}" (port),
+            : [port] "{dx}" (port),
         ),
         else => @compileError("in: Valid types are u8, u16, and u32. Found " ++ @typeName(Type)),
     };

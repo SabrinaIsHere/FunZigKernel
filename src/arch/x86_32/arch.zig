@@ -84,12 +84,12 @@ pub fn Out(port: u16, val: anytype) linksection(".boottext") void {
 }
 
 // Disable interrupts
-pub fn disableInterrupts() linksection(".boottext") void {
+pub inline fn disableInterrupts() linksection(".boottext") void {
     asm volatile ("cli");
 }
 
 /// Halt the processor
-pub fn hlt() linksection(".boottext") void {
+pub inline fn hlt() linksection(".boottext") void {
     asm volatile ("hlt");
 }
 
@@ -114,7 +114,7 @@ pub inline fn setLMBit() linksection(".boottext") void {
     asm volatile (
         \\ movl $0xC0000080, %%ecx
         \\ rdmsr
-        \\ or %%eax, (1 << 9)
+        \\ orl (1 << 9), %%eax
         \\ wrmsr
     );
 }
@@ -122,7 +122,7 @@ pub inline fn setLMBit() linksection(".boottext") void {
 pub inline fn enablePaging() linksection(".boottext") void {
     asm volatile (
         \\ movl %%cr0, %%eax
-        \\ or %%eax, (1 << 31) | (1 << 0)
+        \\ orl (1 << 31) | (1 << 0), %%eax
         \\ movl %%eax, %%cr0
     );
 }
@@ -138,10 +138,12 @@ pub inline fn reloadSegmentRegs() linksection(".boottext") void {
     );
 }
 
-pub inline fn setPML4(pml4: *Paging.PML4E) void {
+// Erroring out
+pub inline fn setPML4(pml4: *Paging.PML4E) linksection(".boottext") void {
     asm volatile (
-        \\ movl %%eax, %%cr4
+        \\ movl %[pml4], %%edi
+        \\ movl %%edi, %%cr3
         :
-        : [pml4] "{eax}" (pml4),
+        : [pml4] "m" (pml4),
     );
 }

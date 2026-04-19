@@ -31,8 +31,13 @@ SECTIONS {
 	}
 
     /* Virtual address of the kernel */
+	. = ALIGN(4K);
 	. += 4M;
-    
+
+	.kmain : AT(ADDR(.kmain) - KERNEL_VMA) {
+		KEEP(*(.kmain))
+	}
+
     .text : AT(ADDR(.text) - KERNEL_VMA) {
 		_code = .;
         *(.text)
