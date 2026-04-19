@@ -72,8 +72,8 @@ pub fn init() void {
 fn handleUD(ctx: *CTX) void {
     Console.print("Invalid opcode fault\n", .{});
     ctx.print();
-    ctx.eip += 4;
-    //arch.wait();
+    //ctx.eip += 4;
+    arch.wait();
 }
 
 /// Handle general protection faults

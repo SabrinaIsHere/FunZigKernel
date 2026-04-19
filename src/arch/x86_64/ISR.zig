@@ -3,46 +3,32 @@
 
 const arch = @import("arch.zig");
 const Idt = @import("IDT.zig");
-const Gdt = @import("GDT.zig");
 const Console = arch.Console;
 const interrupts = @import("interrupts.zig");
+const Gdt = @import("GDT.zig");
 export const isrSelect = interrupts.isrSelect;
 
-pub const ErrorCode = packed struct {
-    reserved: u12,
-    index: u16,
-    ti: u2,
-    idt: u1,
-    ext: u1,
-
-    pub fn print(self: *ErrorCode) void {
-        Console.print(
-            \\Error code: {any}, {any}, {any}, {any}
-            \\
-        , .{ self.ext, self.idt, self.ti, self.index });
-    }
-};
 /// Context of the processor when an interrupt is handled
 /// This stuff is pretty specific to interrupts which is why it's here and not in arch
 pub const CTX = packed struct {
     // General purpose registers
     registers: arch.Registers,
     // Interrupt vector
-    vector: u32,
+    vector: u64,
     /// Error code for exceptions. Set to 0 when handling an interrupt
-    error_code: ErrorCode,
+    error_code: u64,
     /// EIP register at time of exception/interrupt
-    eip: u32,
+    rip: u64,
     // CS register at time of exception/interrupt, padded to a double word
-    cs: u32,
+    cs: u64,
     /// Eflags register at time of exception/interrupt
-    eflags: u32,
+    rflags: u64,
     /// Utility function
     pub fn print(self: *CTX) void {
         self.registers.print();
-        self.error_code.print();
         Console.print(
             \\Vector: 0x{X}
+            \\Error Code: 0x{X}
             \\EIP: 0x{X}
             \\CS: 0x{X}
             \\EFLAGS: 0x{X}
@@ -50,50 +36,68 @@ pub const CTX = packed struct {
         ,
             .{
                 self.vector,
-                self.eip,
+                self.error_code,
+                self.rip,
                 self.cs,
-                self.eflags,
+                self.rflags,
             },
         );
     }
 };
 
 /// Common ISR function; abstracts hardware weirdness away to make writing handlers easier
+/// TODO: Push 64 bit regs
 export fn isrCommon() callconv(.naked) void {
     // Save registers
     asm volatile (
-        \\pushl %%edi
-        \\pushl %%esi
-        \\pushl %%ebp
-        \\pushl %%esp
-        \\pushl %%edx
-        \\pushl %%ecx
-        \\pushl %%ebx
-        \\pushl %%eax
+        \\pushq %%r15
+        \\pushq %%r14
+        \\pushq %%r13
+        \\pushq %%r12
+        \\pushq %%r11
+        \\pushq %%r10
+        \\pushq %%r9
+        \\pushq %%r8
+        \\pushq %%rdi
+        \\pushq %%rsi
+        \\pushq %%rbp
+        \\pushq %%rsp
+        \\pushq %%rdx
+        \\pushq %%rcx
+        \\pushq %%rbx
+        \\pushq %%rax
     );
     asm volatile (
-        \\pushl %%esp
-        \\popl %%edi
+        \\pushq %%rsp
+        \\popq %%rdi
         // Align stack to 16 bytes.
-        \\pushl %%esp
-        \\pushl (%%esp)
-        \\andl $-0x8, %%esp
+        \\pushq %%rsp
+        \\pushq (%%rsp)
+        \\andq $-0x10, %%rsp
         // Call the dispatcher.
         \\call isrSelect
         // Restore the stack.
-        \\movl 4(%%esp), %%esp
+        \\movq 8(%%rsp), %%rsp
     );
     // Restore registers; return from interrupt
     asm volatile (
-        \\popl %%eax
-        \\popl %%ebx
-        \\popl %%ecx
-        \\popl %%edx
-        \\popl %%esp
-        \\popl %%ebp
-        \\popl %%esi
-        \\popl %%edi
-        \\add $8, %%esp
+        \\popq %%rax
+        \\popq %%rbx
+        \\popq %%rcx
+        \\popq %%rdx
+        \\popq %%rsp
+        \\popq %%rbp
+        \\popq %%rsi
+        \\popq %%rdi
+        \\popq %%r8
+        \\popq %%r9
+        \\popq %%r10
+        \\popq %%r11
+        \\popq %%r12
+        \\popq %%r13
+        \\popq %%r14
+        \\popq %%r15
+        \\add $0x10, %%rsp
         \\iret
     );
 }
@@ -105,11 +109,11 @@ fn genISR(comptime vector: usize) Idt.InterruptHandler {
             asm volatile ("cli");
             // If an error code is not provided, push one
             if (vector != 8 and !(vector >= 10 and vector <= 14) and vector != 17) {
-                asm volatile ("pushl $0");
+                asm volatile ("pushq $0");
             }
             // Push the vector
             asm volatile (
-                \\pushl %[vector]
+                \\pushq %[vector]
                 :
                 : [vector] "n" (vector),
             );
@@ -122,22 +126,21 @@ fn genISR(comptime vector: usize) Idt.InterruptHandler {
 /// Initialize the ISRs and load them into the IDT
 pub fn init() void {
     defer Console.print("Interrupts Enabled\n", .{});
-    // Define defaults
     // Define the 32 exceptions
-    // 22-31 are reserved
     inline for (0..32) |i| {
-        Idt.IDT[i].defineTrapGate(genISR(i), Gdt.K_CODE_SEGMENT * 8, 1, Idt.PRIV_K);
+        //Idt.IDT[i].defineTrapGate(genISR(i), Gdt.K_CODE_SEGMENT * 8, 1, Idt.PRIV_K);
+        Idt.IDT[i].defineGate(genISR(i), Gdt.K_CODE_SEGMENT * 8, Idt.PRIV_K, .Trap);
     }
     // Define interrupts
-    //inline for (32..Idt.IDTLength) |i| {
-    //    Idt.IDT[i].defineInterruptGate(genISR(i), Gdt.K_CODE_SEGMENT * 8, 1, Idt.PRIV_K);
-    //}
+    inline for (32..Idt.IDTLength) |i| {
+        Idt.IDT[i].defineGate(genISR(i), Gdt.K_CODE_SEGMENT * 8, Idt.PRIV_K, .Interrupt);
+    }
     interrupts.init();
-    //arch.enableInterrupts(); // TODO: Reenable this
-    //runtimeTests();
+    arch.enableInterrupts();
+    runtimeTests();
 }
 
 pub fn runtimeTests() void {
     Console.print("Interrupt Test: \n", .{});
-    asm volatile ("int $6");
+    asm volatile ("int $6"); // BUG: This is causing a triple fault
 }

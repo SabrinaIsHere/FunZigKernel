@@ -4,6 +4,8 @@ const expectEqual = std.testing.expectEqual;
 const arch = @import("arch.zig");
 const Console = @import("../../io/io.zig").Console;
 
+// TODO: Port to 64 bit
+
 /// Base address of the GDT table
 var GDT: [6]GDTEntry = undefined;
 
@@ -22,7 +24,7 @@ const GDTEntry = packed struct {
     base3: u8,
 
     /// Initialize the GDT entry at the given address. Abstract away the weirdness
-    pub fn init(self: *GDTEntry, limit: u20, base: u32, access: u8, flags: u4) void {
+    pub fn init(self: *GDTEntry, limit: u20, base: u64, access: u8, flags: u4) void {
         self.limit1 = @truncate((limit & 0x0FFFF));
         self.limit2 = @truncate((limit & 0xF0000) >> 16);
         self.base1 = @truncate((base & 0x0000FFFF));
@@ -41,13 +43,14 @@ const GDTEntry = packed struct {
 /// Global storing GDT information. Processor pointed at this to load the GDT
 const GDTRt = packed struct {
     limit: u16,
-    base: u32,
+    base: u64,
 };
 
 var gdtr: GDTRt = undefined;
 
 /// Tells the processor where the GDT is
 /// base: pointer to GDT[0], limit: number of entries
+/// TODO: Reset segment registers
 fn loadGDT(base: *GDTEntry, limit: u8) void {
     // LGDT wants a pointer to a 6 byte region of memory with the base and length of the gdt
     gdtr = .{
@@ -77,14 +80,13 @@ pub const USER_DATA_SEGMENT = 0x4;
 pub const TSS_SEGMENT = 0x5;
 
 /// Functin the kernel calls into to initialize the GDT
-/// This should NEVER be called without interrupts being disabled!
 pub fn init() void {
     arch.disableInterrupts();
     GDT[NULL_SEGMENT].init(0x0, 0x0, 0x0, 0x0);
-    GDT[K_CODE_SEGMENT].init(0xFFFFF, 0x0, 0x9A, 0xC);
+    GDT[K_CODE_SEGMENT].init(0xFFFFF, 0x0, 0x9A, 0xA);
     GDT[K_DATA_SEGMENT].init(0xFFFFF, 0x0, 0x92, 0xC);
-    GDT[USER_CODE_SEGMENT].init(0xFFFFF, 0x0, 0xFA, 0xC);
-    GDT[USER_DATA_SEGMENT].init(0xFFFFF, 0x0, 0xFA, 0xC);
+    GDT[USER_CODE_SEGMENT].init(0xFFFFF, 0x0, 0xFA, 0xA);
+    GDT[USER_DATA_SEGMENT].init(0xFFFFF, 0x0, 0xF2, 0xC);
     const TSS: usize = @intFromPtr(&GDT[TSS_SEGMENT]);
     GDT[TSS_SEGMENT].init(@sizeOf(GDTEntry) - 1, TSS, 0x89, 0x0);
     loadGDT(&GDT[0], 6);

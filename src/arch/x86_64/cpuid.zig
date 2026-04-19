@@ -3,10 +3,10 @@ const Console = arch.Console;
 
 // CPUID wrapper return value
 pub const Regs = packed struct(u128) {
-    eax: usize,
-    ebx: usize,
-    ecx: usize,
-    edx: usize,
+    eax: u32,
+    ebx: u32,
+    ecx: u32,
+    edx: u32,
 };
 
 /// Higher level interface for the features given by the processor.
@@ -98,7 +98,7 @@ pub const CPUInfo = packed struct(u128) {
 pub var cpu_info: CPUInfo = undefined;
 
 /// Maximum code value that can be passed to cpuid. Found when the vendor string is set
-var max_leaf: usize = 0;
+var max_leaf: u32 = 0;
 /// Tells us what vendor made the processor
 pub var vendor_string: [12]u8 = [_]u8{ 'n', 'o', 't', ' ', 'k', 'n', 'o', 'w', 'n', '.', ' ', ' ' };
 
@@ -109,10 +109,10 @@ fn cpuid(code: u32) Regs {
         Console.print("cpuid: Code '{any}' is out of bounds for this processor\n", .{code});
         return Regs{ .eax = 0, .ebx = 0, .ecx = 0, .edx = 0 };
     }
-    var eax: usize = 0;
-    var ebx: usize = 0;
-    var ecx: usize = 0;
-    var edx: usize = 0;
+    var eax: u32 = 0;
+    var ebx: u32 = 0;
+    var ecx: u32 = 0;
+    var edx: u32 = 0;
     asm volatile (
         \\ cpuid
         \\ movl %%eax, %[eax]

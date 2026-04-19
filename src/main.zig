@@ -3,7 +3,7 @@
 
 const IO = @import("io/io.zig");
 const Console = IO.Console;
-//const arch = @import("arch/arch.zig").arch;
+const arch = @import("arch/arch.zig").arch;
 const limine = @import("limine");
 
 export var start_marker: limine.RequestsStartMarker linksection(".limine_requests_start") = .{};
@@ -17,9 +17,9 @@ export var framebuffer_request: limine.FramebufferRequest linksection(".limine_r
 export fn kmain() linksection(".kmain") callconv(.c) noreturn {
     // Initialize VGA and serial driver
     Console.init();
-    Console.print("Kernel loaded\n", .{});
+    Console.print("\n\n\nKernel loaded\n", .{});
     // Initialize architecture stuff
-    //arch.init();
+    arch.init();
     while (true) {
         asm volatile ("hlt");
     }

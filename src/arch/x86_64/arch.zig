@@ -9,37 +9,61 @@ const IO = @import("../../io/io.zig");
 pub const Drivers = @import("drivers/drivers.zig");
 pub const Console = IO.Console;
 
-// General purpose registers
+/// General purpose registers
 pub const Registers = packed struct {
-    EAX: usize,
-    EBX: usize,
-    ECX: usize,
-    EDX: usize,
-    ESP: usize,
-    EBP: usize,
-    ESI: usize,
-    EDI: usize,
+    RAX: usize,
+    RBX: usize,
+    RCX: usize,
+    RDX: usize,
+    RSP: usize,
+    RBP: usize,
+    RSI: usize,
+    RDI: usize,
+    R8: usize,
+    R9: usize,
+    R10: usize,
+    R11: usize,
+    R12: usize,
+    R13: usize,
+    R14: usize,
+    R15: usize,
 
     pub fn print(self: *Registers) void {
         Console.print(
-            \\EAX: 0x{X}
-            \\EBX: 0x{X}
-            \\ECX: 0x{X}
-            \\EDX: 0x{X}
-            \\ESI: 0x{X}
-            \\EDI: 0x{X}
-            \\ESP: 0x{X}
-            \\EBP: 0x{X}
+            \\RAX: 0x{X}
+            \\RBX: 0x{X}
+            \\RCX: 0x{X}
+            \\RDX: 0x{X}
+            \\RSP: 0x{X}
+            \\RBP: 0x{X}
+            \\RSI: 0x{X}
+            \\RDI: 0x{X}
+            \\R8:  0x{X}
+            \\R9:  0x{X}
+            \\R10: 0x{X}
+            \\R11: 0x{X}
+            \\R12: 0x{X}
+            \\R13: 0x{X}
+            \\R14: 0x{X}
+            \\R15: 0x{X}
             \\
         , .{
-            self.EAX,
-            self.EBX,
-            self.ECX,
-            self.EDX,
-            self.ESI,
-            self.EDI,
-            self.ESP,
-            self.EBP,
+            self.RAX,
+            self.RBX,
+            self.RCX,
+            self.RDX,
+            self.RSP,
+            self.RBP,
+            self.RSI,
+            self.RDI,
+            self.R8,
+            self.R9,
+            self.R10,
+            self.R11,
+            self.R12,
+            self.R13,
+            self.R14,
+            self.R15,
         });
     }
 };
