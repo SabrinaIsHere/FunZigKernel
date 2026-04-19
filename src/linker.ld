@@ -1,72 +1,68 @@
-/* The bootloader will look at kernel and start execution at the symbol
-   designated as the entry point. */
-ENTRY(_start)
+OUTPUT_FORMAT(elf64-x86-64)
+/* Entry handled by zig build system for whatever reason */
 
-/* TODO: Get higher half working */
+PHDRS
+{
+    limine_requests PT_LOAD;
+    text PT_LOAD;
+    rodata PT_LOAD;
+    data PT_LOAD;
+}
 
-KERNEL_LMA = 2M;
-/* This may need to be changed later */
-KERNEL_VMA = 3M;
+SECTIONS
+{
+    /* We want to be placed in the topmost 2GiB of the address space, for optimisations */
+    /* and because that is what the Limine spec mandates. */
+    /* Any address in this region will do, but often 0xffffffff80000000 is chosen as */
+    /* that is the beginning of the region. */
+    . = 0xffffffff80000000;
 
-/* Tell where the various sections of the object files will be put in the
-   final kernel image. */
-SECTIONS {
-	. = 2M;
+    /* Define a section to contain the Limine requests and assign it to its own PHDR */
+    .limine_requests : {
+        KEEP(*(.limine_requests_start))
+        KEEP(*(.limine_requests))
+        KEEP(*(.limine_requests_end))
+    } :limine_requests
 
-    .boottext : {
-		KEEP(*(.multiboot))
-		bs64.o (.text)
-	}
+    /* Move to the next memory page for .text */
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-	.bootrodata : {
-		bs64.o (.rodata)
-	}
+    .text : {
+        *(.text .text.*)
+    } :text
 
-	.bootdata : {
-		bs64.o (.data)
-	}
+    /* Move to the next memory page for .rodata */
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-	.bootbss : {
-		bs64.o (.bss)
-	}
+    .rodata : {
+        *(.rodata .rodata.*)
+    } :rodata
 
-    /* Virtual address of the kernel */
-	. = ALIGN(4K);
-	. += 4M;
+    /* Add a .note.gnu.build-id output section in case a build ID flag is added to the */
+    /* linker command. */
+    .note.gnu.build-id : {
+        *(.note.gnu.build-id)
+    } :rodata
 
-	.kmain : AT(ADDR(.kmain) - KERNEL_VMA) {
-		KEEP(*(.kmain))
-	}
+    /* Move to the next memory page for .data */
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-    .text : AT(ADDR(.text) - KERNEL_VMA) {
-		_code = .;
-        *(.text)
-		*(.rodata)
-		. = ALIGN(4K);
-    }
+    .data : {
+        *(.data .data.*)
+    } :data
 
-    /* Read-write data (initialized) */
-    .data : AT(ADDR(.data) - KERNEL_VMA) {
-		_data = .;
-        *(.data)
-		*(.data.rel.ro) /*Idk why it insists on linking this before multiboot if I don't do this*/
-		. = ALIGN(4K);
-    }
-
-	.eh_frame : AT(ADDR(.eh_frame) - KERNEL_VMA) {
-		_ehframe = .;
-		*(.eh_frame)
-		. = ALIGN(4K);
-	}
-
-    /* Read-write data (uninitialized i.e. undefined) */
-    .bss : AT(ADDR(.bss) - KERNEL_VMA) {
-		_bss = .;
+    /* NOTE: .bss needs to be the last thing mapped to :data, otherwise lots of */
+    /* unnecessary zeros will be written to the binary. */
+    /* If you need, for example, .init_array and .fini_array, those should be placed */
+    /* above this. */
+    .bss : {
+        *(.bss .bss.*)
         *(COMMON)
-        *(.bss)
-		. = ALIGN(4K);
-    }
+    } :data
 
-    /* The compiler may produce other sections, by default it will put them
-       in a segment with the same name. Simply add stuff here as needed. */
+    /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */
+    /DISCARD/ : {
+        *(.eh_frame*)
+        *(.note .note.*)
+    }
 }

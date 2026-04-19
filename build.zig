@@ -2,6 +2,8 @@
 
 const std = @import("std");
 
+// TODO: Bootable hd image for usb drive
+
 // Gonna be real, zig build system is worse than makefiles almost purely because of how badly documented it is
 
 /// https://codeberg.org/raddari/zig-nasm-lib/src/branch/main/build.zig
@@ -41,17 +43,6 @@ pub fn build(b: *std.Build) !void {
         // Disable all SIMD related stuff because SIMD are problematic in kernel
         .cpu_features_sub = Target.featureSet(&.{ .avx, .avx2, .sse, .sse2, .mmx }),
     });
-    // 32 bit target used to the bootstrapping code
-    const target_32 = b.resolveTargetQuery(.{
-        .cpu_arch = .x86,
-        .os_tag = .freestanding,
-        .abi = .none,
-        // We use software float because we are disabling all SIMD stuff
-        .cpu_features_add = Target.featureSet(&.{.soft_float}),
-        // Disable all SIMD related stuff because SIMD are problematic in kernel
-        .cpu_features_sub = Target.featureSet(&.{ .avx, .avx2, .sse, .sse2, .mmx }),
-    });
-
     // Main kernel code
     const kernel_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -59,103 +50,51 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
         .code_model = .kernel,
     });
-    // Code I wrote when I wasn't planning for the kernel to be 64 bit. Still useful for the bootstrap
-    const arch32 = b.createModule(.{
-        .root_source_file = b.path("src/arch/x86_32/arch.zig"),
-        .target = target_32,
-        .optimize = optimize,
-        .code_model = .kernel,
+    // NOTE: Using a branch that works with zig 0.15.X, doesn't seem like the project is still
+    // being maintained. Might fork it myself for stability and so I don't have to think about it
+    const limine_zig = b.dependency("limine_zig", .{
+        .api_revision = 3,
+        .allow_deprecated = false,
+        .no_pointers = false,
     });
-    const multiboot_module = b.createModule(.{
-        .root_source_file = b.path("src/multiboot.zig"),
-        .target = target_32,
-        .optimize = optimize,
-        .code_model = .kernel,
-    });
-    // Bootstrap module itself, loaded by grub, enters 64 bit
-    const bootstrap_module = b.createModule(.{
-        .root_source_file = b.path("src/entry.zig"),
-        .target = target_32,
-        .optimize = optimize,
-        .code_model = .kernel,
-        .imports = &.{
-            .{
-                .name = "arch",
-                .module = arch32,
-            },
-            .{
-                .name = "multiboot",
-                .module = multiboot_module,
-            },
-        },
-    });
-    //bootstrap_module.addAssemblyFile(b.path("src/entry.S"));
-    // Final executable loaded by grub
-    const exe_module = b.createModule(.{
-        .target = target_64,
-        .optimize = optimize,
-        .code_model = .kernel,
-    });
-    // The bootstrap object needs to be converted to a 64 bit elf before the linker will allow 64 and 32
-    // bit code. Idk why it doesn't like linking compiler generated stuff, it does assemly just fine
-    const bootstrap = b.addObject(.{
-        .name = "bs",
-        .root_module = bootstrap_module,
-    });
-    bootstrap.pie = false;
-    // Cursed. bs_wf is an area in the zig cache for me to operate on the bin file
-    // TODO: I'm pretty sure there's a way to do this with a zig ObjCopy, I'm not entirely sure
-    // what std.elf thing I'm meant to use though
-    const bs_wf = b.addNamedWriteFiles("bs");
-    bs_wf.step.dependOn(&bootstrap.step);
-    const bs_bin32 = bs_wf.addCopyFile(bootstrap.getEmittedBin(), "bs32.o");
-    const bs_bin64 = bs_wf.getDirectory().path(b, "bs64.o");
-    const bootstrap_64_cmd = b.addSystemCommand(&[_][]const u8{
-        "objcopy", "-O", "elf64-x86-64",
-    });
-    bootstrap_64_cmd.addFileArg(bs_bin32);
-    bootstrap_64_cmd.addFileArg(bs_bin64);
-    bootstrap_64_cmd.step.dependOn(&bootstrap.step);
-    const kernel = b.addObject(.{
-        .name = "kernel64",
-        .root_module = kernel_module,
-    });
-    kernel.step.dependOn(&bootstrap_64_cmd.step);
-    exe_module.addObjectFile(bs_bin64);
-    exe_module.addObject(kernel);
+    const limine_module = limine_zig.module("limine");
+    kernel_module.addImport("limine", limine_module);
+    kernel_module.red_zone = false;
     // Compile the final executable
     const exe = b.addExecutable(.{
         .name = "kernel.elf",
-        .root_module = exe_module,
+        .root_module = kernel_module,
     });
-    exe.step.dependOn(&kernel.step);
-    addNasm(b, exe, b.path("src/entry.S"), "elf64");
-    exe.entry = .enabled;
+    b.getInstallStep().dependOn(&exe.step);
+    exe.use_llvm = true;
     // So I can double check compiler output is what I think it is if I need to
-    // NOTE: Not working
     if (emit_asm) {
         const installAssembly = b.addInstallBinFile(exe.getEmittedAsm(), "kernel.s");
         b.getInstallStep().dependOn(&installAssembly.step);
     }
     // Install the elf
     exe.setLinkerScript(b.path("src/linker.ld"));
+    exe.entry = .{ .symbol_name = "kmain" };
     exe.linkage = .static;
     exe.link_z_max_page_size = 4096;
     b.installArtifact(exe);
 
-    // Cache area to generate the kernel.iso. Qemu directly launches from here so the iso creation
-    // is kind of vestigial
+    // Cache area to generate the kernel.iso
     const wf = b.addNamedWriteFiles("isodir");
-    _ = wf.addCopyFile(exe.getEmittedBin(), "boot/kernel.elf");
-    _ = wf.addCopyFile(b.path("grub.cfg"), "boot/grub/grub.cfg");
+    const isodir = wf.addCopyDirectory(b.path("iso-template"), "root", .{});
+    _ = wf.addCopyFile(exe.getEmittedBin(), "root/boot/kernel.elf");
     wf.step.dependOn(b.getInstallStep());
     const mk_iso_cmd = b.addSystemCommand(&[_][]const u8{
         // zig fmt: off
-        "grub-mkrescue", "-o", "kernel.iso", 
+        "xorriso", "-as", "mkisofs", "-R", "-r", "-J", "-b", "boot/limine/limine-bios-cd.bin",
+        "-no-emul-boot", "-boot-load-size", "4", "-boot-info-table", "-hfsplus",
+        "-apm-block-size", "2048", "--efi-boot", "boot/limine/limine-uefi-cd.bin",
+        "-efi-boot-part", "--efi-boot-image", "--protective-msdos-label",
+        "-o", "kernel.iso"
     });
     // zig fmt: on
     mk_iso_cmd.step.dependOn(&wf.step);
-    mk_iso_cmd.addFileArg(wf.getDirectory());
+    mk_iso_cmd.addFileArg(isodir);
     // Start qemu
     // TODO: Memory and smp options
     const qemu_cmd = b.addSystemCommand(&[_][]const u8{
@@ -219,7 +158,7 @@ pub fn build(b: *std.Build) !void {
     const docs_install = b.addInstallDirectory(.{
         .install_dir = .prefix,
         .install_subdir = "docs",
-        .source_dir = kernel.getEmittedDocs(),
+        .source_dir = exe.getEmittedDocs(),
     });
     docs_step.dependOn(&docs_install.step);
     b.getInstallStep().dependOn(docs_step);

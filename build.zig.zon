@@ -1,0 +1,12 @@
+.{
+    .name = .FunZigKernel,
+    .version = "0.15.2",
+    .dependencies = .{
+        .limine_zig = .{
+            .url = "git+https://github.com/OranGot/limine-zig?ref=trunk#9d0bba117881b58813792f1ea39a8113c176e693",
+            .hash = "limine_zig-0.0.0-1TjwQJp9AABynQ250N-obO4q43zKB6s4Ymm3yoAFy0XH",
+        },
+    },
+    .paths = .{""},
+    .fingerprint = 0x69a52220d8f961d0,
+}

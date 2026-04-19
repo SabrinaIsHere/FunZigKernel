@@ -6,6 +6,7 @@ const ISR = @import("ISR.zig");
 const Cpuid = @import("cpuid.zig");
 const Apic = @import("apic.zig");
 const IO = @import("../../io/io.zig");
+pub const Drivers = @import("drivers/drivers.zig");
 pub const Console = IO.Console;
 
 // General purpose registers

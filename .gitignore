@@ -1,0 +1,5 @@
+*.log
+*.iso
+isodir
+zig-out
+ovmf

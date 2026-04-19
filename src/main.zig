@@ -3,20 +3,23 @@
 
 const IO = @import("io/io.zig");
 const Console = IO.Console;
-const Serial = @import("drivers/data/serial.zig");
 //const arch = @import("arch/arch.zig").arch;
-const Multiboot = @import("multiboot.zig");
+const limine = @import("limine");
+
+export var start_marker: limine.RequestsStartMarker linksection(".limine_requests_start") = .{};
+export var end_marker: limine.RequestsEndMarker linksection(".limine_requests_end") = .{};
+
+export var base_revision: limine.BaseRevision linksection(".limine_requests") = .init(3);
+export var framebuffer_request: limine.FramebufferRequest linksection(".limine_requests") = .{};
 
 // We use noinline to make sure it don't get inlined by compiler
 // Linked to kmain because I need a predetermined address to long jump to
-export fn kmain(multiboot_magic: u32, multiboot_info: *Multiboot.MultibootInfo) linksection(".kmain") callconv(.c) noreturn {
+export fn kmain() linksection(".kmain") callconv(.c) noreturn {
     // Initialize VGA and serial driver
     Console.init();
     Console.print("Kernel loaded\n", .{});
-    Multiboot.init(multiboot_magic, multiboot_info);
     // Initialize architecture stuff
     //arch.init();
-    // Loop forever as there is nothing to do
     while (true) {
         asm volatile ("hlt");
     }
