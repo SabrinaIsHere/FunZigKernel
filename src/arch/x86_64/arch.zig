@@ -142,6 +142,7 @@ pub fn wait() noreturn {
 }
 
 /// Kernel panic; disable interrupts and halt the cpu
+/// TODO: Serial only print?
 pub fn k_panic(comptime msg: []const u8) noreturn {
     disableInterrupts();
     Console.print("kpanic: ", .{});

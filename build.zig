@@ -64,9 +64,10 @@ pub fn build(b: *std.Build) !void {
     const exe = b.addExecutable(.{
         .name = "kernel.elf",
         .root_module = kernel_module,
+        .use_llvm = true,
     });
+    exe.root_module.addAnonymousImport("console_font", .{ .root_source_file = b.path("fonts/koi8u_8x8.psfu") });
     b.getInstallStep().dependOn(&exe.step);
-    exe.use_llvm = true;
     // So I can double check compiler output is what I think it is if I need to
     if (emit_asm) {
         const installAssembly = b.addInstallBinFile(exe.getEmittedAsm(), "kernel.s");

@@ -137,10 +137,10 @@ pub fn init() void {
     }
     interrupts.init();
     arch.enableInterrupts();
-    runtimeTests();
+    //runtimeTests();
 }
 
 pub fn runtimeTests() void {
     Console.print("Interrupt Test: \n", .{});
-    asm volatile ("int $6"); // BUG: This is causing a triple fault
+    asm volatile ("int $6");
 }

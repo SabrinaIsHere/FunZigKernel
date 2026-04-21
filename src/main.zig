@@ -10,7 +10,7 @@ export var start_marker: limine.RequestsStartMarker linksection(".limine_request
 export var end_marker: limine.RequestsEndMarker linksection(".limine_requests_end") = .{};
 
 export var base_revision: limine.BaseRevision linksection(".limine_requests") = .init(3);
-export var framebuffer_request: limine.FramebufferRequest linksection(".limine_requests") = .{};
+pub export var framebuffer_request: limine.FramebufferRequest linksection(".limine_requests") = .{};
 
 // We use noinline to make sure it don't get inlined by compiler
 // Linked to kmain because I need a predetermined address to long jump to

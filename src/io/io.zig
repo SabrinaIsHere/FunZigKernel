@@ -1,21 +1,26 @@
 //! Presents hardware agnostic interfaces for IO
 
-const arch = @import("../arch/arch.zig").arch;
+pub const arch = @import("../arch/arch.zig").arch;
 const Drivers = arch.Drivers;
 const Serial = Drivers.Serial;
+const Framebuffer = Drivers.Framebuffer;
+const Font = @import("../misc/font.zig");
+const VideoConsole = @import("video_console.zig");
 
 /// Standard interface exposing console IO
 pub const Console = struct {
-    /// Initializes VGA and Serial
+    /// Initializes output modes (serial, framebuffer)
     pub fn init() void {
-        //VGA.init();
         Serial.init() catch arch.k_panic("Serial unable to initialize.");
+        VideoConsole.init();
     }
-    /// Clears VGA framebuffer. Doesn't clear serial because it's the backup debugging output and it
-    /// needs to maintain integrity
-    /// Prints to VGA and serial
+    // Clears video, doesn't clear serial since logs need to be maintained
+    pub fn clear() void {
+        VideoConsole.clear();
+    }
+    /// Prints to framebuffer and serial
     pub fn print(comptime fmt: []const u8, args: anytype) void {
-        //VGA.print(fmt, args);
         Serial.print(fmt, args);
+        VideoConsole.print(fmt, args);
     }
 };
