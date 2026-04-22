@@ -8,8 +8,9 @@
     - ~IDT~
     - ~ISRs~
     - Exception handlers
-    - APIC reprogramming
+    - ~APIC reprogramming~
         - cpuid
+        - Basics handled by limine
  - Memory
     - Memory map
     - Dynamic allocation
@@ -22,16 +23,13 @@
 ## Architecture
 The kernel leaves room for a future port to ARM or RISC-V, though that isn't likely any time soon
 
-### x86_32
+### x86_64
 ---
-64 bit long mode may be supported in the future but for now it is out of scope.
 
 #### Interrupts
 
 ##### GDT
-Must have, at minimum, the 8 byte null descriptor, DPL 0 code segment descriptor for the kernel, data segment, task state segment. Room for more is necessary, for things like user level LDTs.
-
-As I plan to use paging, the GDT will be fairly minimal, including just the null descriptor, kernel code segment, kernel data segment, user code segment, user data segment, and task state segment, none of which actually restrict memory.
+Mostly only used to make IDT privilege levels work, otherwise the data in the GDT in long mode is ignored.
 
 ##### IDT
 Pretty typical IDT. Handlers are generated in comptime.
@@ -39,30 +37,24 @@ Pretty typical IDT. Handlers are generated in comptime.
 ##### APIC
 I'm not planning to support PICs since the ultimate goal here is to run on my laptop and supporting ultra legacy systems seems like a waste of effort. Maybe if I were targeting a broader hardware set.
 
-##### Issues
-Get a weird #DF interrupt with a screwy stack on boot
-- Almost certainly related to PICs not being reprogrammed. https://forum.osdev.org/viewtopic.php?t=57381
-
-#GP Whenever I attampt to `iret` from an exception, but no #DF.
-- Working on the apic stuff before this in case it's related
-
 ## IO
 Namespace presenting a hardware agnostic IO interface
 
 ### Console
 ---
-Exposes `init`, `print`, and `clear`.
+Exposes `init`, `print`, and `clear`. Mirrors everything to serial and the display.
 
 ## Drivers
-Drivers are in src/drivers and included in drivers.zig, which has a `Drivers` namespace which includes the bottom namespaces.
+Drivers are in src/drivers and included in drivers.zig, which has a `Drivers` namespace which includes the below namespaces. There are also more hardware level drivers in arch/x86_64/drivers.
 
 ### Display
 ---
 
 #### VGA
-Standard VGA driver implementing printing, colors, etc.
+No longer supported since the move to uefi.
 
-Scrolling pushes everything up one line and blanks out the very bottom
+#### Framebuffer
+Lowest level framebuffer driver in arch/x86_64/drivers which only handles pixels and scrolling. Higher level video console driver is in drivers/display, which handles rendering text based on bitmaps from misc/font.zig which has a psf console font embedded.
 
 ### Data
 ---
@@ -70,13 +62,5 @@ Scrolling pushes everything up one line and blanks out the very bottom
 #### Serial
 Allows some automated testing and a much more convenient debugging experience. Currently polls on everything though it won't in the future.
 
-## Multiboot
-Using multiboot2 for access to acpi stuff, although at this point I'm not sure if it was worth it lol
-
-Issues -
- - Getting kind of a weird memory format passed to mbi with one valid tag and then a bunch of nonsense
-
-Notes -
- - Memory in pointer passed to the kernel:
-   - 0x00005600 0x00000000 0x00000015 0x0000000c 0x00200000 0x00000000 0x00000001 0x00000009
- - Seems like the end tag is around 0x1dc6b4 or 0x1dc6f8
+## Limine
+Limine was selected as I was having a lot of difficulty getting into 64 bit mode and I finally decided to cut my losses. Limine is also a lot more elegant to use due to the zig bindings, but those bindings aren't being maintained anymore and I should likely fork the project for stability.

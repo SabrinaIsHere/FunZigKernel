@@ -1,11 +1,15 @@
 //! Got this from https://github.com/ZystemOS/pluto/blob/develop/src/kernel/arch/x86/arch.zig
+//! TODO: Translate machine code in memory to assembly for debugging purposes. For now gdb is fine
 
+const limine = @import("limine");
 const GDT = @import("GDT.zig");
 const IDT = @import("IDT.zig");
 const ISR = @import("ISR.zig");
 const Cpuid = @import("cpuid.zig");
 const Apic = @import("apic.zig");
 const IO = @import("../../io/io.zig");
+const Paging = @import("paging.zig");
+const main = @import("../../main.zig");
 pub const Drivers = @import("drivers/drivers.zig");
 pub const Console = IO.Console;
 
@@ -68,15 +72,19 @@ pub const Registers = packed struct {
     }
 };
 
+var hhdm_offset: usize = 0;
+
 /// Initializes architecture specific things like the GDT and IDT
 pub fn init() void {
     disableInterrupts();
+    initHhdm();
     GDT.init();
     IDT.init();
     Cpuid.init();
     //Apic.init(); // NOTE: This probably needs to go with the acpi stuff
     // This reenables interrupts
     ISR.init();
+    Paging.init();
 }
 
 /// Wrapper for the x86 assembly instruction 'inb'
@@ -131,7 +139,7 @@ pub fn disableInterrupts() void {
 }
 
 /// Halt the processor
-pub fn hlt() void {
+pub inline fn hlt() void {
     asm volatile ("hlt");
 }
 
@@ -142,10 +150,41 @@ pub fn wait() noreturn {
 }
 
 /// Kernel panic; disable interrupts and halt the cpu
-/// TODO: Serial only print?
+/// TODO: Serial only print
 pub fn k_panic(comptime msg: []const u8) noreturn {
     disableInterrupts();
     Console.print("kpanic: ", .{});
     Console.print(msg, .{});
     while (true) hlt();
+}
+
+/// Loads the pml4 into the processor
+/// Expects pml4 to be a virtual address
+pub inline fn setPML4(pml4: *Paging.PML4E) void {
+    Console.print("Loading page tables...\n", .{});
+    defer Console.print("New page tables loaded\n", .{});
+    const phys_addr: usize = @truncate(virtualToPhysical(@intFromPtr(pml4)));
+    Console.print("Physical address: 0x{X}\n", .{phys_addr});
+    // BUG: Throwing a #GP, likely bc of virtualToPhysical()
+    // Or the page table is invalid because it unmaps the kernel
+    // CR3 is also 32 bit
+    asm volatile (
+        \\ mov %[pml4], %%cr3 
+        :
+        : [pml4] "{rax}" (phys_addr),
+    );
+}
+
+fn initHhdm() void {
+    defer Console.print("HHDM offset: 0x{X}\n", .{hhdm_offset});
+    const response = main.hhdm_request.response orelse k_panic("No hhdm provided\n");
+    hhdm_offset = response.offset;
+}
+
+pub inline fn virtualToPhysical(addr: usize) usize {
+    return addr - hhdm_offset;
+}
+
+pub inline fn physicalToVirtual(addr: usize) usize {
+    return addr + hhdm_offset;
 }

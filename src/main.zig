@@ -1,5 +1,9 @@
+//! Main file, called into by limine in 64 bit
+
 // I want to note that I've started and stopped a lot of OSDev projects, and with that in mind,
 // I'm documenting this one very heavily so it'll be easy to pick back up in a few months
+// I have never used AI to generate code nor will I ever. I do not give permission for any of this
+// to be used as training data
 
 const IO = @import("io/io.zig");
 const Console = IO.Console;
@@ -11,6 +15,7 @@ export var end_marker: limine.RequestsEndMarker linksection(".limine_requests_en
 
 export var base_revision: limine.BaseRevision linksection(".limine_requests") = .init(3);
 pub export var framebuffer_request: limine.FramebufferRequest linksection(".limine_requests") = .{};
+pub export var hhdm_request: limine.HhdmRequest linksection(".limine_requests") = .{};
 
 // We use noinline to make sure it don't get inlined by compiler
 // Linked to kmain because I need a predetermined address to long jump to

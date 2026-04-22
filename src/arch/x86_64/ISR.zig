@@ -29,7 +29,7 @@ pub const CTX = packed struct {
         Console.print(
             \\Vector: 0x{X}
             \\Error Code: 0x{X}
-            \\EIP: 0x{X}
+            \\RIP: 0x{X}
             \\CS: 0x{X}
             \\EFLAGS: 0x{X}
             \\
