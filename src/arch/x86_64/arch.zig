@@ -167,7 +167,7 @@ pub inline fn setPML4(pml4: *Paging.PML4E) void {
     Console.print("Physical address: 0x{X}\n", .{phys_addr});
     // BUG: Throwing a #GP, likely bc of virtualToPhysical()
     // Or the page table is invalid because it unmaps the kernel
-    // CR3 is also 32 bit
+    // CR3 is also 32 bit (maybe not? I've seen conflicting sources)
     asm volatile (
         \\ mov %[pml4], %%cr3 
         :
