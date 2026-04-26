@@ -1,42 +1,69 @@
+//! Handle GDT related operations
+//! If I were wiling to make this uglier more of it could definitely be done at compile time
+
 const native_endian = @import("builtin").target.cpu.arch.endian();
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const arch = @import("arch.zig");
 const Console = @import("../../io/io.zig").Console;
 
-// TODO: Port to 64 bit
-
 /// Base address of the GDT table
-var GDT: [6]GDTEntry = undefined;
+const GDT = packed struct {
+    null: GDTEntry = GDTEntry{},
+    k_code: GDTEntry = GDTEntry{},
+    k_data: GDTEntry = GDTEntry{},
+    u_code: GDTEntry = GDTEntry{},
+    u_data: GDTEntry = GDTEntry{},
+    tss: SSD = SSD{},
+};
+
+/// Actual gdt. Had to to do it this ugly way to accommodate the ssd
+var gdt = GDT{};
 
 // TODO: Set granularity
 
 /// Struct defining a GDT entry. GDTs are weird so variables are set with functions to abstract it, though they should never
 /// be modified after the first stages of booting where they're defined with init() since I'm using paging.
 const GDTEntry = packed struct {
-    // TODO: should these be reversed?
-    limit1: u16,
-    base1: u16,
-    base2: u8,
-    access: u8,
-    limit2: u4,
-    flags: u4,
-    base3: u8,
+    limit1: u16 = 0,
+    base1: u16 = 0,
+    base2: u8 = 0,
+    access: u8 = 0,
+    limit2: u4 = 0,
+    flags: u4 = 0,
+    base3: u8 = 0,
 
     /// Initialize the GDT entry at the given address. Abstract away the weirdness
-    pub fn init(self: *GDTEntry, limit: u20, base: u64, access: u8, flags: u4) void {
-        self.limit1 = @truncate((limit & 0x0FFFF));
-        self.limit2 = @truncate((limit & 0xF0000) >> 16);
-        self.base1 = @truncate((base & 0x0000FFFF));
-        self.base2 = @truncate((base & 0x00FF0000) >> 16);
-        self.base3 = @truncate((base & 0xFF000000) >> 24);
+    /// Base and limit are ignored in 64 bit mode
+    pub fn init(self: *GDTEntry, access: u8, flags: u4) void {
         self.access = access;
         self.flags = flags;
     }
 
     pub fn print(self: *GDTEntry) void {
-        Console.print("Limit: 0x{X}{X}\n", .{ self.limit2, self.limit1 });
-        Console.print("Base: 0x{X}{X}{X}\n", .{ self.base3, self.base2, self.base1 });
+        Console.print("Access: 0x{X}, Flags: 0x{X}\n", .{ self.access, self.flags });
+    }
+};
+
+/// System segment descriptor. Long mode TSS or LDT descriptor
+const SSD = packed struct(u128) {
+    limit1: u16 = 0,
+    base1: u24 = 0,
+    access: u8 = 0,
+    limit2: u4 = 0,
+    flags: u4 = 0,
+    base2: u40 = 0,
+    reserved: u32 = 0,
+
+    /// Convenience function to deal with bit stuff
+    pub fn init(self: *align(8) SSD, limit: u20, base: u64, access: u8, flags: u4) void {
+        self.limit1 = @truncate(limit);
+        // I don't really need to mask the bits like this but I think it makes things more readable
+        self.limit2 = @truncate((limit & 0xF) >> 16);
+        self.base1 = @truncate(base);
+        self.base2 = @truncate((base & 0xFFFFFFFFFFFF0000) >> 16);
+        self.access = access;
+        self.flags = flags;
     }
 };
 
@@ -50,8 +77,8 @@ var gdtr: GDTRt = undefined;
 
 /// Tells the processor where the GDT is
 /// base: pointer to GDT[0], limit: number of entries
-/// TODO: Reset segment registers
-fn loadGDT(base: *GDTEntry, limit: u8) void {
+fn loadGDT(base: *GDT, limit: u8) void {
+    defer Console.print("GDT loaded\n", .{});
     // LGDT wants a pointer to a 6 byte region of memory with the base and length of the gdt
     gdtr = .{
         .limit = limit * @sizeOf(GDTEntry),
@@ -61,6 +88,8 @@ fn loadGDT(base: *GDTEntry, limit: u8) void {
         :
         : [gdtr] "{eax}" (&gdtr),
     );
+    // Reload segment registers. Defined in arch.S
+    arch.reloadSegments();
 }
 
 /// sgdt gets the data in the GDTR
@@ -82,14 +111,13 @@ pub const TSS_SEGMENT = 0x5;
 /// Functin the kernel calls into to initialize the GDT
 pub fn init() void {
     arch.disableInterrupts();
-    GDT[NULL_SEGMENT].init(0x0, 0x0, 0x0, 0x0);
-    GDT[K_CODE_SEGMENT].init(0xFFFFF, 0x0, 0x9A, 0xA);
-    GDT[K_DATA_SEGMENT].init(0xFFFFF, 0x0, 0x92, 0xC);
-    GDT[USER_CODE_SEGMENT].init(0xFFFFF, 0x0, 0xFA, 0xA);
-    GDT[USER_DATA_SEGMENT].init(0xFFFFF, 0x0, 0xF2, 0xC);
-    const TSS: usize = @intFromPtr(&GDT[TSS_SEGMENT]);
-    GDT[TSS_SEGMENT].init(@sizeOf(GDTEntry) - 1, TSS, 0x89, 0x0);
-    loadGDT(&GDT[0], 6);
+    gdt.k_code.init(0x9A, 0xA);
+    gdt.k_data.init(0x92, 0xC);
+    gdt.u_code.init(0xFA, 0xA);
+    gdt.u_data.init(0xF2, 0xC);
+    const TSS: usize = @intFromPtr(&gdt.tss);
+    gdt.tss.init(@sizeOf(GDTEntry) - 1, TSS, 0x89, 0x0);
+    loadGDT(&gdt, 6);
     runtimeTests();
 }
 
@@ -101,10 +129,10 @@ fn runtimeTests() void {
             .{ 6, GDTRegister.limit / @sizeOf(GDTEntry) },
         );
     }
-    if (GDTRegister.base != @intFromPtr(&GDT[0])) {
+    if (GDTRegister.base != @intFromPtr(&gdt)) {
         Console.print(
             "Base of GDT differs from expected: {any}: {any}\n",
-            .{ GDTRegister.base, @intFromPtr(&GDT[0]) },
+            .{ GDTRegister.base, @intFromPtr(&gdt) },
         );
     }
     if (@sizeOf(GDTEntry) != 8) Console.print("GDTEntry has wrong number of bytes\n", .{});

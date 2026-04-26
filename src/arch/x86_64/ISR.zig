@@ -46,10 +46,13 @@ pub const CTX = packed struct {
 };
 
 /// Common ISR function; abstracts hardware weirdness away to make writing handlers easier
-/// TODO: Push 64 bit regs
 export fn isrCommon() callconv(.naked) void {
     // Save registers
     asm volatile (
+        \\pushq %%rdi
+        \\pushq %%rsi
+        \\pushq %%rbp
+        \\pushq %%rsp
         \\pushq %%r15
         \\pushq %%r14
         \\pushq %%r13
@@ -58,13 +61,17 @@ export fn isrCommon() callconv(.naked) void {
         \\pushq %%r10
         \\pushq %%r9
         \\pushq %%r8
-        \\pushq %%rdi
-        \\pushq %%rsi
-        \\pushq %%rbp
-        \\pushq %%rsp
         \\pushq %%rdx
         \\pushq %%rcx
         \\pushq %%rbx
+        \\pushq %%rax
+        \\movq %%cr2, %%rax
+        \\pushq %%rax
+        \\movq %%cr3, %%rax
+        \\pushq %%rax
+        \\movq %%cr4, %%rax
+        \\pushq %%rax
+        \\movq %%cr8, %%rax
         \\pushq %%rax
     );
     asm volatile (
@@ -82,13 +89,17 @@ export fn isrCommon() callconv(.naked) void {
     // Restore registers; return from interrupt
     asm volatile (
         \\popq %%rax
+        \\movq %%rax, %%cr8
+        \\popq %%rax
+        \\movq %%rax, %%cr4
+        \\popq %%rax
+        \\movq %%rax, %%cr3
+        \\popq %%rax
+        \\movq %%rax, %%cr2
+        \\popq %%rax
         \\popq %%rbx
         \\popq %%rcx
         \\popq %%rdx
-        \\popq %%rsp
-        \\popq %%rbp
-        \\popq %%rsi
-        \\popq %%rdi
         \\popq %%r8
         \\popq %%r9
         \\popq %%r10
@@ -97,6 +108,10 @@ export fn isrCommon() callconv(.naked) void {
         \\popq %%r13
         \\popq %%r14
         \\popq %%r15
+        \\popq %%rsp
+        \\popq %%rbp
+        \\popq %%rsi
+        \\popq %%rdi
         \\add $0x10, %%rsp
         \\iret
     );

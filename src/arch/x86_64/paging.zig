@@ -1,6 +1,10 @@
 const arch = @import("arch.zig");
 const Console = arch.Console;
 
+const PagingError = error{
+    InvalidPhysicalAddress,
+};
+
 /// References a PDPT
 /// Public so arch can be passed a pointer to it
 pub const PML4E = packed struct(u64) {
@@ -109,13 +113,13 @@ const PTE = packed struct(u64) {
 };
 
 /// Highest order paging structure, loaded into the processor
-var PML4: [1]PML4E align(0x1000) linksection(".bootdata") = [_]PML4E{.{}} ** 1;
+var PML4: [1]PML4E align(0x1000) = [_]PML4E{.{}} ** 1;
 /// Second order paging structure
-var PDPT: [1]PDPTE align(0x1000) linksection(".bootdata") = [_]PDPTE{.{}} ** 1;
+var PDPT: [1]PDPTE align(0x1000) = [_]PDPTE{.{}} ** 1;
 /// Third order paging structure
-var PDT: [1]PDE align(0x1000) linksection(".bootdata") = [_]PDE{.{}} ** 1;
+var PDT: [1]PDE align(0x1000) = [_]PDE{.{}} ** 1;
 /// Fourth order paging structure
-var PT: [512]PTE align(0x1000) linksection(".bootdata") = [_]PTE{.{}} ** 512;
+var PT: [512]PTE align(0x1000) = [_]PTE{.{}} ** 512;
 
 /// Initialize and enable paging
 /// Maps the first 2 MiB
@@ -127,5 +131,18 @@ pub fn init() void {
     PDT[0].init(@intFromPtr(&PT), true, 1, 1);
     PDPT[0].init(@intFromPtr(&PDT), 1, 1);
     PML4[0].init(@intFromPtr(&PDPT), true, 1, 1);
+    runtimeTests() catch arch.k_panic("Paging error\n");
     arch.setPML4(&PML4[0]);
+}
+
+/// Runs a couple tests to make sure everything is in order before we attempt to load cr4
+/// Only for use when debugging
+fn runtimeTests() PagingError!void {
+    // Check that the physical address is translating
+    // NOTE: This isn't doing anything, figure out how to verify a physical address
+    const pml4_physical: usize = arch.virtualToPhysical(@intFromPtr(&PML4[0]));
+    Console.print("PML4 Physical: 0x{X}\n", .{pml4_physical});
+    const pml4_virtual: usize = arch.physicalToVirtual(pml4_physical);
+    Console.print("PML4 Physical: 0x{X}\n", .{pml4_virtual});
+    if (pml4_virtual != @intFromPtr(&PML4[0])) return PagingError.InvalidPhysicalAddress;
 }

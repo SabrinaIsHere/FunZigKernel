@@ -15,14 +15,14 @@ pub const Console = IO.Console;
 
 /// General purpose registers
 pub const Registers = packed struct {
+    CR2: usize,
+    CR3: usize,
+    CR4: usize,
+    CR8: usize,
     RAX: usize,
     RBX: usize,
     RCX: usize,
     RDX: usize,
-    RSP: usize,
-    RBP: usize,
-    RSI: usize,
-    RDI: usize,
     R8: usize,
     R9: usize,
     R10: usize,
@@ -31,6 +31,10 @@ pub const Registers = packed struct {
     R13: usize,
     R14: usize,
     R15: usize,
+    RSP: usize,
+    RBP: usize,
+    RSI: usize,
+    RDI: usize,
 
     pub fn print(self: *Registers) void {
         Console.print(
@@ -38,10 +42,6 @@ pub const Registers = packed struct {
             \\RBX: 0x{X}
             \\RCX: 0x{X}
             \\RDX: 0x{X}
-            \\RSP: 0x{X}
-            \\RBP: 0x{X}
-            \\RSI: 0x{X}
-            \\RDI: 0x{X}
             \\R8:  0x{X}
             \\R9:  0x{X}
             \\R10: 0x{X}
@@ -50,16 +50,20 @@ pub const Registers = packed struct {
             \\R13: 0x{X}
             \\R14: 0x{X}
             \\R15: 0x{X}
+            \\RSP: 0x{X}
+            \\RBP: 0x{X}
+            \\RSI: 0x{X}
+            \\RDI: 0x{X}
+            \\CR2: 0x{X}
+            \\CR3: 0x{X}
+            \\CR4: 0x{X}
+            \\CR8: 0x{X}
             \\
         , .{
             self.RAX,
             self.RBX,
             self.RCX,
             self.RDX,
-            self.RSP,
-            self.RBP,
-            self.RSI,
-            self.RDI,
             self.R8,
             self.R9,
             self.R10,
@@ -68,11 +72,21 @@ pub const Registers = packed struct {
             self.R13,
             self.R14,
             self.R15,
+            self.RSP,
+            self.RBP,
+            self.RSI,
+            self.RDI,
+            self.CR2,
+            self.CR3,
+            self.CR4,
+            self.CR8,
         });
     }
 };
 
 var hhdm_offset: usize = 0;
+
+pub extern fn reloadSegments() void;
 
 /// Initializes architecture specific things like the GDT and IDT
 pub fn init() void {
@@ -81,8 +95,6 @@ pub fn init() void {
     GDT.init();
     IDT.init();
     Cpuid.init();
-    //Apic.init(); // NOTE: This probably needs to go with the acpi stuff
-    // This reenables interrupts
     ISR.init();
     Paging.init();
 }
@@ -164,14 +176,16 @@ pub inline fn setPML4(pml4: *Paging.PML4E) void {
     Console.print("Loading page tables...\n", .{});
     defer Console.print("New page tables loaded\n", .{});
     const phys_addr: usize = @truncate(virtualToPhysical(@intFromPtr(pml4)));
+    const cr3_val = (0x000) & (phys_addr << 11);
     Console.print("Physical address: 0x{X}\n", .{phys_addr});
     // BUG: Throwing a #GP, likely bc of virtualToPhysical()
     // Or the page table is invalid because it unmaps the kernel
     // CR3 is also 32 bit (maybe not? I've seen conflicting sources)
+    // bits 0-11 of cr3 should be 0
     asm volatile (
         \\ mov %[pml4], %%cr3 
         :
-        : [pml4] "{rax}" (phys_addr),
+        : [pml4] "{rax}" (cr3_val),
     );
 }
 

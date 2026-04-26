@@ -66,6 +66,7 @@ pub fn build(b: *std.Build) !void {
         .root_module = kernel_module,
         .use_llvm = true,
     });
+    addNasm(b, exe, b.path("src/arch/x86_64/arch.S"), "elf64");
     exe.root_module.addAnonymousImport("console_font", .{ .root_source_file = b.path("fonts/koi8u_8x8.psfu") });
     b.getInstallStep().dependOn(&exe.step);
     // So I can double check compiler output is what I think it is if I need to
