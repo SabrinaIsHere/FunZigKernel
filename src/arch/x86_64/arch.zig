@@ -204,7 +204,7 @@ pub fn getPML4() *Paging.PML4E {
 /// Initialize hhdm related data
 fn initHhdm() void {
     defer Console.print("HHDM offset: 0x{X}\n", .{hhdm_offset});
-    const response = main.hhdm_request.response orelse k_panic("No hhdm provided\n");
+    const response = main.hhdm_request.response orelse @panic("No hhdm provided\n");
     hhdm_offset = response.offset;
 }
 

@@ -122,9 +122,9 @@ var limine_pml4: *PML4E = undefined;
 /// Highest order paging structure, loaded into the processor
 var PML4: [1]PML4E align(0x1000) = [_]PML4E{.{}} ** 1;
 /// Second order paging structure
-var PDPT: [1]PDPTE align(0x1000) = [_]PDPTE{.{}} ** 1;
+var PDPT: [512]PDPTE align(0x1000) = [_]PDPTE{.{}} ** 1;
 /// Third order paging structure
-var PDT: [1]PDE align(0x1000) = [_]PDE{.{}} ** 1;
+var PDT: [512][512]PDE align(0x1000) = [_]PDE{.{}} ** 1;
 /// Fourth order paging structure
 var PT: [512]PTE align(0x1000) = [_]PTE{.{}} ** 512;
 
@@ -154,4 +154,13 @@ fn runtimeTests() PagingError!void {
     const pml4_virtual: usize = arch.physicalToVirtual(pml4_physical);
     Console.print("PML4 Virtual: 0x{X}\n", .{pml4_virtual});
     if (pml4_virtual != @intFromPtr(&PML4[0])) return PagingError.InvalidPhysicalAddress;
+}
+
+pub fn map(phys: usize, virt: usize) void {
+    _ = phys;
+    _ = virt;
+}
+
+pub fn unmap(virt: usize) void {
+    _ = virt;
 }
