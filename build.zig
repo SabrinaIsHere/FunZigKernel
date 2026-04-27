@@ -107,7 +107,6 @@ pub fn build(b: *std.Build) !void {
         "--no-reboot",
         "-net", "none",
         "-serial", "mon:stdio",
-        //"-vga", "std",
         "-drive", "if=pflash,format=raw,unit=0,file=./ovmf/OVMF_CODE.fd,readonly=on", // For acpi 2.0+
         "-drive", "if=pflash,format=raw,unit=1,file=./ovmf/OVMF_VARS.fd", // For acpi 2.0+
         "-cdrom", "kernel.iso",
@@ -121,7 +120,7 @@ pub fn build(b: *std.Build) !void {
     if (log) {
         qemu_cmd.addArgs(&[_][]const u8 {"-D", "./qemu.log", "-d", "int"});
     } else {
-        qemu_cmd.addArgs(&[_][]const u8 {"--enable-kvm", "-cpu", "host"});
+        //qemu_cmd.addArgs(&[_][]const u8 {"--enable-kvm", "-cpu", "host"});
     }
     if (!graphical) qemu_cmd.addArgs(&[_][]const u8 {"-nographic"});
     // zig fmt: on

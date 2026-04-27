@@ -1,6 +1,8 @@
 const arch = @import("arch.zig");
 const Console = arch.Console;
 
+// TODO: Parse and copy limine paging structure
+
 const PagingError = error{
     InvalidPhysicalAddress,
 };
@@ -112,6 +114,11 @@ const PTE = packed struct(u64) {
     }
 };
 
+/// Pointer to paging structures setup by limine. Virtual address
+var limine_pml4: *PML4E = undefined;
+
+// TODO: When there's a functional allocator this should stop being static
+
 /// Highest order paging structure, loaded into the processor
 var PML4: [1]PML4E align(0x1000) = [_]PML4E{.{}} ** 1;
 /// Second order paging structure
@@ -125,13 +132,15 @@ var PT: [512]PTE align(0x1000) = [_]PTE{.{}} ** 512;
 /// Maps the first 2 MiB
 pub fn init() void {
     defer Console.print("Paging enabled\n", .{});
+    //limine_pml4 = arch.getPML4(); // This isn't working
+    //Console.print("Limine PML4: {any}\n", .{limine_pml4});
     for (0..PT.len) |i| {
         PT[i].init(i * 4096, true, 1, 1, false);
     }
     PDT[0].init(@intFromPtr(&PT), true, 1, 1);
     PDPT[0].init(@intFromPtr(&PDT), 1, 1);
     PML4[0].init(@intFromPtr(&PDPT), true, 1, 1);
-    runtimeTests() catch arch.k_panic("Paging error\n");
+    //runtimeTests() catch arch.k_panic("Paging error\n"); // Not helping rn
     arch.setPML4(&PML4[0]);
 }
 
@@ -143,6 +152,6 @@ fn runtimeTests() PagingError!void {
     const pml4_physical: usize = arch.virtualToPhysical(@intFromPtr(&PML4[0]));
     Console.print("PML4 Physical: 0x{X}\n", .{pml4_physical});
     const pml4_virtual: usize = arch.physicalToVirtual(pml4_physical);
-    Console.print("PML4 Physical: 0x{X}\n", .{pml4_virtual});
+    Console.print("PML4 Virtual: 0x{X}\n", .{pml4_virtual});
     if (pml4_virtual != @intFromPtr(&PML4[0])) return PagingError.InvalidPhysicalAddress;
 }

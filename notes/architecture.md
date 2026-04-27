@@ -1,24 +1,27 @@
 ## Todo
- - ~~VGA driver~~
- - Serial driver
-    - ~~Blocking IO~~
-    - Interrupt IO
- - Interrupts
-    - ~GDT~
-    - ~IDT~
-    - ~ISRs~
-    - Exception handlers
-    - ~APIC reprogramming~
-        - cpuid
-        - Basics handled by limine
- - Memory
-    - Memory map
-    - Dynamic allocation
- - Command interpreter
- - Module loading
- - Processes
-    - Time sharing
- - Message passing
+ - [x] VGA driver
+ - [ ] Serial driver
+    - [x] Blocking IO
+    - [ ] Interrupt IO
+ - [ ] Interrupts
+    - [x] GDT
+    - [x] IDT
+    - [x] ISRs
+    - [ ] Exception handlers
+    - [ ] APIC reprogramming
+        - [x] cpuid
+        - note: Basics handled by limine
+ - [ ] Memory
+    - [ ] Paging
+        - [ ] Load non-limine page tables
+        - [ ] Map/unmap pages
+    - [ ] Memory map
+    - [ ] Mynamic allocation
+ - [ ] Command interpreter
+ - [ ] Module loading
+ - [ ] Processes
+    - [ ] Time sharing
+ - [ ] Message passing
 
 ## Architecture
 The kernel leaves room for a future port to ARM or RISC-V, though that isn't likely any time soon

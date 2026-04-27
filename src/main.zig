@@ -7,6 +7,7 @@
 
 const IO = @import("io/io.zig");
 const Console = IO.Console;
+const Panic = @import("panic.zig");
 const arch = @import("arch/arch.zig").arch;
 const limine = @import("limine");
 
@@ -16,6 +17,8 @@ export var end_marker: limine.RequestsEndMarker linksection(".limine_requests_en
 export var base_revision: limine.BaseRevision linksection(".limine_requests") = .init(3);
 pub export var framebuffer_request: limine.FramebufferRequest linksection(".limine_requests") = .{};
 pub export var hhdm_request: limine.HhdmRequest linksection(".limine_requests") = .{};
+
+pub const panic = Panic.panic;
 
 // We use noinline to make sure it don't get inlined by compiler
 // Linked to kmain because I need a predetermined address to long jump to
