@@ -6,9 +6,10 @@
 // to be used as training data
 
 const IO = @import("io/io.zig");
-const Console = IO.Console;
+pub const Console = IO.Console;
 const Panic = @import("panic.zig");
-const arch = @import("arch/arch.zig").arch;
+pub const arch = @import("arch/arch.zig").arch;
+const KAllocator = @import("memory/kallocator.zig");
 const limine = @import("limine");
 
 export var start_marker: limine.RequestsStartMarker linksection(".limine_requests_start") = .{};
@@ -17,6 +18,8 @@ export var end_marker: limine.RequestsEndMarker linksection(".limine_requests_en
 export var base_revision: limine.BaseRevision linksection(".limine_requests") = .init(3);
 pub export var framebuffer_request: limine.FramebufferRequest linksection(".limine_requests") = .{};
 pub export var hhdm_request: limine.HhdmRequest linksection(".limine_requests") = .{};
+pub export var mmap_request: limine.MemoryMapRequest linksection(".limine_requests") = .{};
+pub export var k_address: limine.ExecutableAddressRequest linksection(".limine_requests") = .{};
 
 pub const panic = Panic.panic;
 
@@ -26,6 +29,8 @@ export fn kmain() linksection(".kmain") callconv(.c) noreturn {
     // Initialize VGA and serial driver
     Console.init();
     Console.print("\n\n\nKernel loaded\n", .{});
+    // Initialize the ultra basic memory allocator
+    KAllocator.init();
     // Initialize architecture stuff
     arch.init();
     while (true) {

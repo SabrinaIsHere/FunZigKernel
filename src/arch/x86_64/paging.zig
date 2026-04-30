@@ -115,18 +115,9 @@ const PTE = packed struct(u64) {
 };
 
 /// Pointer to paging structures setup by limine. Virtual address
-var limine_pml4: *PML4E = undefined;
+var pml4: *PML4E = undefined;
 
 // TODO: When there's a functional allocator this should stop being static
-
-/// Highest order paging structure, loaded into the processor
-var PML4: [1]PML4E align(0x1000) = [_]PML4E{.{}} ** 1;
-/// Second order paging structure
-var PDPT: [512]PDPTE align(0x1000) = [_]PDPTE{.{}} ** 1;
-/// Third order paging structure
-var PDT: [512][512]PDE align(0x1000) = [_]PDE{.{}} ** 1;
-/// Fourth order paging structure
-var PT: [512]PTE align(0x1000) = [_]PTE{.{}} ** 512;
 
 /// Initialize and enable paging
 /// Maps the first 2 MiB
@@ -134,14 +125,20 @@ pub fn init() void {
     defer Console.print("Paging enabled\n", .{});
     //limine_pml4 = arch.getPML4(); // This isn't working
     //Console.print("Limine PML4: {any}\n", .{limine_pml4});
-    for (0..PT.len) |i| {
-        PT[i].init(i * 4096, true, 1, 1, false);
-    }
-    PDT[0].init(@intFromPtr(&PT), true, 1, 1);
-    PDPT[0].init(@intFromPtr(&PDT), 1, 1);
-    PML4[0].init(@intFromPtr(&PDPT), true, 1, 1);
+    //PML4[0].init(@intFromPtr(&PDPT), true, 1, 1);
+    //for (0..PT.len) |i| {
+    //    PDPT[i].init(@intFromPtr(&PDT[i]), 1, 1);
+    //    for (0..PT[i].len) |j| {
+    //        PDT[i][j] = .{};
+    //        PDT[i][j].init(@intFromPtr(&PT[i][j]), true, 1, 1);
+    //        for (0..PT[i][j].len) |k| {
+    //            PT[i][j][k] = .{};
+    //            PT[i][j][k].init(i * j * k * 4096, true, 1, 1, false);
+    //        }
+    //    }
+    //}
     //runtimeTests() catch arch.k_panic("Paging error\n"); // Not helping rn
-    arch.setPML4(&PML4[0]);
+    //arch.setPML4(&PML4[0]);
 }
 
 /// Runs a couple tests to make sure everything is in order before we attempt to load cr4
@@ -149,11 +146,11 @@ pub fn init() void {
 fn runtimeTests() PagingError!void {
     // Check that the physical address is translating
     // NOTE: This isn't doing anything, figure out how to verify a physical address
-    const pml4_physical: usize = arch.virtualToPhysical(@intFromPtr(&PML4[0]));
+    const pml4_physical: usize = arch.virtualToPhysical(@intFromPtr(&pml4[0]));
     Console.print("PML4 Physical: 0x{X}\n", .{pml4_physical});
     const pml4_virtual: usize = arch.physicalToVirtual(pml4_physical);
     Console.print("PML4 Virtual: 0x{X}\n", .{pml4_virtual});
-    if (pml4_virtual != @intFromPtr(&PML4[0])) return PagingError.InvalidPhysicalAddress;
+    if (pml4_virtual != @intFromPtr(&pml4[0])) return PagingError.InvalidPhysicalAddress;
 }
 
 pub fn map(phys: usize, virt: usize) void {
