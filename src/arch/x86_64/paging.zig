@@ -1,5 +1,7 @@
 const arch = @import("arch.zig");
 const Console = arch.Console;
+const print = Console.print;
+const kallocator = @import("../../memory/kallocator.zig");
 
 // TODO: Parse and copy limine paging structure
 
@@ -8,7 +10,8 @@ const PagingError = error{
 };
 
 /// References a PDPT
-/// Public so arch can be passed a pointer to it
+/// Handles mapping logic
+/// TODO: Allocate PT when needed?
 pub const PML4E = packed struct(u64) {
     present: bool = true,
     rw: bool = true,
@@ -17,8 +20,8 @@ pub const PML4E = packed struct(u64) {
     pcd: u1 = 0,
     accessed: bool = false,
     reserved1: u6 = 0,
-    addr: u36 = 0,
-    reserved2: u15 = 0,
+    addr: u48 = 0,
+    reserved2: u3 = 0,
     xd: u1 = 0,
 
     pub fn init(self: *PML4E, addr: usize, rw: bool, pwt: u1, pcd: u1) void {
@@ -27,6 +30,26 @@ pub const PML4E = packed struct(u64) {
         self.pwt = pwt;
         self.pcd = pcd;
         self.addr = @truncate(addr);
+    }
+
+    pub fn getPTE(self: *PML4E, virt_addr: usize) *PTE {
+        const pdptindex: u9 = (virt_addr >> 30) & 0x1FF;
+        const pdindex: u9 = (virt_addr >> 21) & 0x1FF;
+        const ptindex: u9 = (virt_addr >> 12) & 0x03FF;
+        const pdpt: *[512]PDPTE = @ptrFromInt(self.addr);
+        const pd: *[512]PDE = @ptrFromInt(pdpt[pdptindex]);
+        const pt: *[512]PTE = @ptrFromInt(pd[pdindex]);
+        return pt[ptindex];
+    }
+
+    pub fn map(self: *PML4E, phys_addr: usize, virt_addr: usize) void {
+        const pte: *PTE = self.getPTE(virt_addr);
+        pte.init(phys_addr, true, 1, 1, 1);
+    }
+
+    pub fn unmap(self: *PML4E, virt_addr: usize) void {
+        const pte: *PTE = self.getPTE(virt_addr);
+        pte.present = false;
     }
 };
 
@@ -39,8 +62,8 @@ const PDPTE = packed struct(u64) {
     pcd: u1 = 0,
     accessed: bool = false,
     reserved: u6 = 0,
-    addr: u36 = 0,
-    reserved2: u15 = 0,
+    addr: u48 = 0,
+    reserved2: u3 = 0,
     xd: bool = false,
 
     pub fn init(self: *PDPTE, addr: usize, pwt: u1, pcd: u1) void {
@@ -62,8 +85,8 @@ const PDE = packed struct(u64) {
     ignored1: u1 = 0,
     ps: u1 = 0,
     ignored2: u4 = 0,
-    addr: u36 = 0,
-    reserved: u15 = 0,
+    addr: u48 = 0,
+    reserved: u3 = 0,
     xd: bool = false,
 
     pub fn init(
@@ -93,8 +116,8 @@ const PTE = packed struct(u64) {
     pat: u1 = 0,
     global: bool = false,
     ignored1: u3 = 0,
-    addr: u36 = 0,
-    reserved: u15 = 0,
+    addr: u48 = 0,
+    reserved: u3 = 0,
     xd: bool = false,
 
     pub fn init(
@@ -123,22 +146,8 @@ var pml4: *PML4E = undefined;
 /// Maps the first 2 MiB
 pub fn init() void {
     defer Console.print("Paging enabled\n", .{});
-    //limine_pml4 = arch.getPML4(); // This isn't working
-    //Console.print("Limine PML4: {any}\n", .{limine_pml4});
-    //PML4[0].init(@intFromPtr(&PDPT), true, 1, 1);
-    //for (0..PT.len) |i| {
-    //    PDPT[i].init(@intFromPtr(&PDT[i]), 1, 1);
-    //    for (0..PT[i].len) |j| {
-    //        PDT[i][j] = .{};
-    //        PDT[i][j].init(@intFromPtr(&PT[i][j]), true, 1, 1);
-    //        for (0..PT[i][j].len) |k| {
-    //            PT[i][j][k] = .{};
-    //            PT[i][j][k].init(i * j * k * 4096, true, 1, 1, false);
-    //        }
-    //    }
-    //}
-    //runtimeTests() catch arch.k_panic("Paging error\n"); // Not helping rn
-    //arch.setPML4(&PML4[0]);
+    pml4 = allocatePageTable() catch @panic("Page table allocation error");
+    //arch.setPML4(&pml4[0]);
 }
 
 /// Runs a couple tests to make sure everything is in order before we attempt to load cr4
@@ -153,11 +162,27 @@ fn runtimeTests() PagingError!void {
     if (pml4_virtual != @intFromPtr(&pml4[0])) return PagingError.InvalidPhysicalAddress;
 }
 
+pub fn allocatePageTable() kallocator.MemError!*PML4E {
+    const pt: *[512][512][512]PTE = @ptrCast(try kallocator.get(PTE, 512 * 512 * 512));
+    const pd: *[512][512]PDE = @ptrCast(try kallocator.get(PDE, 512 * 512));
+    for (0..512) |i| {
+        for (0..512) |j| {
+            pd[i][j].init(@intFromPtr(&pt[i][j][0]), true, 1, 1);
+        }
+    }
+    const pdpt: *[512]PDPTE = @ptrCast(try kallocator.get(PDPTE, 512));
+    for (0..512) |i| {
+        pdpt[i].init(@intFromPtr(&pd[i][0]), 1, 1);
+    }
+    const retval: *PML4E = @ptrCast(try kallocator.get(PML4E, 1));
+    pml4.init(@intFromPtr(&pdpt), true, 1, 1);
+    return retval;
+}
+
 pub fn map(phys: usize, virt: usize) void {
-    _ = phys;
-    _ = virt;
+    pml4.map(phys, virt);
 }
 
 pub fn unmap(virt: usize) void {
-    _ = virt;
+    pml4.unmap(virt);
 }

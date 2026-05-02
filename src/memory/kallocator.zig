@@ -12,6 +12,7 @@ const LimineMmapType = limine.MemoryMapType;
 pub const MemError = error{
     NoMemoryAvailable,
     EntryNotFound,
+    InvalidRequest,
 };
 
 /// Type of memory for a region. Determines how if the region is likely to be freed or not
@@ -68,11 +69,15 @@ pub fn init() void {
 
 /// Allocate a regian of memory to create the requested object. If one can't be found, throws an error
 /// Tries to allocate the memory right above the kernel
-pub fn get(len: usize) MemError!*anyopaque {
-    for (mmap) |entry| {
-        if (entry.type == .Free and entry.len > len) {
-            const ret_base = entry.base;
-            entry.base += len;
+pub fn get(obj: type, num: usize) MemError![*]obj {
+    if (num == 0) return MemError.InvalidRequest;
+    const len = @sizeOf(obj) * num;
+    for (mmap, 0..) |_, i| {
+        var entry = &mmap[i];
+        if (entry.type == .Free and entry.length > len) {
+            const ret_base = entry.phys_base;
+            entry.phys_base += len;
+            entry.length -= len;
             mmap[num_entries] = .{
                 .phys_base = ret_base,
                 .length = len,
@@ -82,6 +87,7 @@ pub fn get(len: usize) MemError!*anyopaque {
             return @ptrFromInt(arch.physicalToVirtual(entry.phys_base));
         }
     }
+    return MemError.NoMemoryAvailable;
 }
 
 /// Mark the region of memory as free
@@ -89,8 +95,11 @@ pub fn get(len: usize) MemError!*anyopaque {
 /// This WILL cause fragmentation, I'll get around to something more permanent later
 pub fn free(base: *anyopaque) MemError!void {
     for (mmap) |entry| {
+        // TODO: Merge with surrounding entries if possible
         if (entry.base == @intFromPtr(base)) {
             entry.type = .Free;
+            return;
         }
     }
+    return MemError.EntryNotFound;
 }

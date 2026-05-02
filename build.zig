@@ -102,7 +102,7 @@ pub fn build(b: *std.Build) !void {
     const qemu_cmd = b.addSystemCommand(&[_][]const u8{
         // zig fmt: off
         "qemu-system-x86_64",
-        "-m", "1G",
+        "-m", "2G",
         "-smp", "1",
         "--no-reboot",
         "-net", "none",
