@@ -24,7 +24,7 @@ pub fn addNasm(b: *std.Build, compile: *std.Build.Step.Compile, file: std.Build.
 pub fn build(b: *std.Build) !void {
     const gdb = b.option(bool, "gdb", "Debug with GDB") orelse false;
     const log = b.option(bool, "log", "Enable Qemu logs") orelse false;
-    const graphical = b.option(bool, "graphical", "Enable graphical Qemu output") orelse false;
+    const graphical = b.option(bool, "graphical", "Enable graphical Qemu output") orelse true;
     const shutdown = b.option(bool, "shutdown", "Allow/disallow qemu to shut down") orelse false;
     const emit_asm = b.option(bool, "asm", "Emit kernel.s") orelse false;
     //const mem = b.option(u32, "mem", "Define the number megabytes of memory available") orelse 1024;

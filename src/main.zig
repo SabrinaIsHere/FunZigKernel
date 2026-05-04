@@ -29,6 +29,8 @@ export fn kmain() linksection(".kmain") callconv(.c) noreturn {
     // Initialize VGA and serial driver
     Console.init();
     Console.print("\n\n\nKernel loaded\n", .{});
+    // Needs to be initialized before kallocator, though it would normally be in arch.init()
+    arch.initHhdm();
     // Initialize the ultra basic memory allocator
     KAllocator.init();
     // Initialize architecture stuff

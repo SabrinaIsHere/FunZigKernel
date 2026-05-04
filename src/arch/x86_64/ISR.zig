@@ -65,13 +65,13 @@ export fn isrCommon() callconv(.naked) void {
         \\pushq %%rcx
         \\pushq %%rbx
         \\pushq %%rax
-        \\movq %%cr2, %%rax
-        \\pushq %%rax
-        \\movq %%cr3, %%rax
+        \\movq %%cr8, %%rax
         \\pushq %%rax
         \\movq %%cr4, %%rax
         \\pushq %%rax
-        \\movq %%cr8, %%rax
+        \\movq %%cr3, %%rax
+        \\pushq %%rax
+        \\movq %%cr2, %%rax
         \\pushq %%rax
     );
     asm volatile (
@@ -89,13 +89,13 @@ export fn isrCommon() callconv(.naked) void {
     // Restore registers; return from interrupt
     asm volatile (
         \\popq %%rax
-        \\movq %%rax, %%cr8
-        \\popq %%rax
-        \\movq %%rax, %%cr4
+        \\movq %%rax, %%cr2
         \\popq %%rax
         \\movq %%rax, %%cr3
         \\popq %%rax
-        \\movq %%rax, %%cr2
+        \\movq %%rax, %%cr4
+        \\popq %%rax
+        \\movq %%rax, %%cr8
         \\popq %%rax
         \\popq %%rbx
         \\popq %%rcx

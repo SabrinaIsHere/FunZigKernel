@@ -1,9 +1,12 @@
 //! Basic early memory allocator for the kernel, for now. I plan to implement slab allocation later but for now it's
 //! basically just intended to serve paging
 //! This also really should not be used for anything that isn't a semipermanent structure, it WILL cause fragmentation
+//! NOTE: Just write the fucking slab allocator if this is gonna take so much time
+//! TODO: Slab allocation
 
 const main = @import("../main.zig");
 const Console = main.Console;
+const print = Console.print;
 const arch = main.arch;
 const limine = @import("limine");
 const LimineMmapType = limine.MemoryMapType;
@@ -32,8 +35,8 @@ const MemType = enum {
 };
 
 /// Memory map entry, very basic structure
-const MemMapE = struct {
-    phys_base: usize = 0,
+pub const MemMapE = struct {
+    base: usize = 0,
     length: usize = 0,
     type: MemType = .Free,
     /// Optional field, only relevant if this is an object mapping
@@ -41,59 +44,103 @@ const MemMapE = struct {
 };
 
 /// Actual memory map buffer.
-var mmap: [128]MemMapE = [_]MemMapE{.{}} ** 128;
+/// Public so it can be printed during error handling
+pub var mmap: [128]MemMapE = [_]MemMapE{.{}} ** 128;
 /// How many mmap entries have been initialized
-var num_entries: u8 = 0;
+var num_entries: u16 = 0;
 /// How much physical memory is available
-var total_phys_memory: usize = 0;
+pub var total_phys_memory: usize = 0;
+/// Length in bytes of the kernel binary
+pub var kernel_length: usize = 0;
+/// Not a source of truth, mostly to avoid allocating the wrong memory early in boot
+var k_start: usize = 0;
 
 /// Initialize data structure based on what limine passes
 pub fn init() void {
-    defer Console.print("Memory: {any} KiB\n", .{total_phys_memory / 1024});
+    defer print("Total memory: {any}GB, {any}MB\n", .{ total_phys_memory / 1000000000, (total_phys_memory % 1000000000) / 1000000 });
     // Walk mmap response, filling out internal structure
     const limine_mmap = main.mmap_request.response orelse @panic("Memory map not provided");
+    //Console.print("Limine mmap: {any}\n", .{limine_mmap.getEntries()});
     for (limine_mmap.getEntries(), 0..limine_mmap.entry_count) |entry, _| {
-        mmap[num_entries] = .{
-            .phys_base = entry.base,
-            .length = entry.length,
-            .type = switch (entry.type) {
-                LimineMmapType.usable => .Free,
-                LimineMmapType.executable_and_modules => .KCode,
-                else => .Reserved,
-            },
-        };
+        // Ignore anything under 1 MB for obvious reasons
+        // NOTE: This will probably break if I try to load modules, I'll need to reference the base also passed
+        if (entry.type == LimineMmapType.executable_and_modules) {
+            kernel_length = entry.length;
+            k_start = arch.physicalToVirtual(entry.base);
+            continue;
+        }
+        if (entry.base < 1000000 or entry.type != LimineMmapType.usable) continue;
         total_phys_memory += entry.length;
+        mmap[num_entries] = .{
+            .base = arch.physicalToVirtual(entry.base),
+            .length = entry.length,
+            .type = .Free,
+        };
         num_entries += 1;
     }
 }
 
+// TODO: Remove this
+pub var allocation_attempts: usize = 0;
 /// Allocate a regian of memory to create the requested object. If one can't be found, throws an error
 /// Tries to allocate the memory right above the kernel
-pub fn get(obj: type, num: usize) MemError![*]obj {
+/// Zeroes out all memory allocated
+pub fn get(obj: type, num: usize, alignment: usize) MemError![*]obj {
+    allocation_attempts += 1;
     if (num == 0) return MemError.InvalidRequest;
     const len = @sizeOf(obj) * num;
     for (mmap, 0..) |_, i| {
         var entry = &mmap[i];
-        if (entry.type == .Free and entry.length > len) {
-            const ret_base = entry.phys_base;
-            entry.phys_base += len;
-            entry.length -= len;
-            mmap[num_entries] = .{
-                .phys_base = ret_base,
+        // Added to base to get requested alignment
+        // Allocating up to the alignment as well because I'm lazy and this is only really for paging
+        const align_val: usize = alignment - (entry.base % alignment);
+        // Skip if invalid
+        if (entry.length < len + align_val or entry.type != .Free) continue;
+        const ret_base = entry.base + align_val;
+        entry.base += len + align_val;
+        entry.length -= len + align_val;
+        const prev_entry = if (i > 0) &mmap[i - 1] else null;
+        // Add new entry or extend existing
+        if (prev_entry != null and prev_entry.?.type == .KData) {
+            prev_entry.?.length += len + align_val;
+        } else {
+            insertEntry(i, .{
+                .base = ret_base,
                 .length = len,
                 .type = .KData,
-            };
+            });
             num_entries += 1;
-            return @ptrFromInt(arch.physicalToVirtual(entry.phys_base));
         }
+        const retval: [*]obj = @ptrFromInt(ret_base);
+        @memset(retval[0..num], .{});
+        return retval;
     }
     return MemError.NoMemoryAvailable;
+}
+
+fn insertEntry(index: usize, entry: MemMapE) void {
+    var i = num_entries;
+    if (i >= 127) @panic("kallocator.zig: insertEntry: buffer overflow");
+    while (i > index) {
+        mmap[i] = .{
+            .base = mmap[i - 1].base,
+            .length = mmap[i - 1].length,
+            .type = mmap[i - 1].type,
+        };
+        i -= 1;
+    }
+    mmap[index] = .{
+        .base = entry.base,
+        .length = entry.length,
+        .type = entry.type,
+    };
 }
 
 /// Mark the region of memory as free
 /// base must be the bottom pointer of an entry, ideally just pass back the pointer obtained from get
 /// This WILL cause fragmentation, I'll get around to something more permanent later
 pub fn free(base: *anyopaque) MemError!void {
+    arch.k_panic("kallocator.free doesn't work yet");
     for (mmap) |entry| {
         // TODO: Merge with surrounding entries if possible
         if (entry.base == @intFromPtr(base)) {
@@ -102,4 +149,9 @@ pub fn free(base: *anyopaque) MemError!void {
         }
     }
     return MemError.EntryNotFound;
+}
+
+/// Debugging utility function
+pub fn printMmap() void {
+    Console.print("Mmap: {any}\n", .{mmap[0..num_entries]});
 }

@@ -84,12 +84,20 @@ pub const Registers = packed struct {
     }
 };
 
-var hhdm_offset: usize = 0;
+/// Helps translate virtual address to physical or vice versa
+pub var hhdm_offset: usize = 0;
+/// Phyiscal base in memory of the kernel
+var k_phys_base: usize = 0;
+/// Vritual base in memory of the kernel
+var k_virt_base: usize = 0;
 
 pub extern fn reloadSegments() void;
 
 /// Initializes architecture specific things like the GDT and IDT
 pub fn init() void {
+    const k_addr = main.k_address.response orelse @panic("Kernel base not passed");
+    k_phys_base = k_addr.physical_base;
+    k_virt_base = k_addr.virtual_base;
     disableInterrupts();
     initHhdm();
     GDT.init();
@@ -162,7 +170,6 @@ pub fn wait() noreturn {
 }
 
 /// Kernel panic; disable interrupts and halt the cpu
-/// TODO: Serial only print
 pub fn k_panic(comptime msg: []const u8) noreturn {
     disableInterrupts();
     Console.print("kpanic: ", .{});
@@ -178,10 +185,7 @@ pub fn setPML4(pml4: *Paging.PML4E) void {
     const phys_addr: usize = virtualToPhysical(@intFromPtr(pml4));
     const cr3_val = (phys_addr << 12);
     Console.print("Physical address (set cr3): 0x{X}\n", .{phys_addr});
-    // BUG: Throwing a #GP, no idea why
-    // Or the page table is invalid because it unmaps the kernel
-    // bits 0-11 of cr3 should be 0
-    // My best guess is that a reserved bit is being written to somewhere but idfk
+    // BUG: Crashes everything, likely the page table isn't mapping the kernel correctly
     asm volatile (
         \\ mov %[pml4], %%cr3 
         :
@@ -202,20 +206,22 @@ pub fn getPML4() *Paging.PML4E {
 }
 
 /// Initialize hhdm related data
-fn initHhdm() void {
-    defer Console.print("HHDM offset: 0x{X}\n", .{hhdm_offset});
+pub fn initHhdm() void {
     const response = main.hhdm_request.response orelse @panic("No hhdm provided\n");
     hhdm_offset = response.offset;
 }
 
 /// Translates a virtual address to a physical via hhdm
-/// TODO: Anyopaque? Would be more annoying for some stuff but make more sense. Maybe usize to *anyopaque
 pub inline fn virtualToPhysical(addr: usize) usize {
-    return addr - hhdm_offset;
+    if (k_phys_base & addr >= k_virt_base) {
+        return addr - k_virt_base + k_phys_base;
+    } else if (hhdm_offset & addr >= hhdm_offset) {
+        return addr - hhdm_offset;
+    }
+    return addr;
 }
 
 /// Translates a phyiscal address to a virtual via hhdm
-/// TODO: Anyopaque
 pub inline fn physicalToVirtual(addr: usize) usize {
     return addr + hhdm_offset;
 }

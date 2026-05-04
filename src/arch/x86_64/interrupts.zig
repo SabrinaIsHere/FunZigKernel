@@ -64,6 +64,7 @@ pub fn isrSelect(ctx: *CTX) callconv(.c) void {
 
 pub fn init() void {
     handlers[@intFromEnum(ErrorVectors.GeneralProtection)] = handleGP;
+    handlers[@intFromEnum(ErrorVectors.PageFault)] = handlePF;
     handlers[@intFromEnum(ErrorVectors.InvalidOpcode)] = handleUD;
 }
 
@@ -80,5 +81,16 @@ fn handleUD(ctx: *CTX) void {
 fn handleGP(ctx: *CTX) void {
     Console.print("General protection fault\n", .{});
     ctx.print();
+    arch.wait();
+}
+
+/// Handle page faults
+/// This function is going to have to change a lot later
+fn handlePF(ctx: *CTX) void {
+    Console.print(
+        "===Page fault===\nAttempted access to 0x{X} at 0x{X}\n",
+        .{ ctx.registers.CR2, ctx.rip },
+    );
+    //ctx.print();
     arch.wait();
 }

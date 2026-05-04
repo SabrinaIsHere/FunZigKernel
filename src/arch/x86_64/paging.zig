@@ -2,6 +2,7 @@ const arch = @import("arch.zig");
 const Console = arch.Console;
 const print = Console.print;
 const kallocator = @import("../../memory/kallocator.zig");
+const main = @import("../../main.zig");
 
 // TODO: Parse and copy limine paging structure
 
@@ -11,7 +12,6 @@ const PagingError = error{
 
 /// References a PDPT
 /// Handles mapping logic
-/// TODO: Allocate PT when needed?
 pub const PML4E = packed struct(u64) {
     present: bool = true,
     rw: bool = true,
@@ -20,10 +20,12 @@ pub const PML4E = packed struct(u64) {
     pcd: u1 = 0,
     accessed: bool = false,
     reserved1: u6 = 0,
-    addr: u48 = 0,
-    reserved2: u3 = 0,
+    addr: u40 = 0,
+    reserved2: u11 = 0,
     xd: u1 = 0,
 
+    /// Sets present bit and initializes data
+    /// If there is no PDPT, set address to 0
     pub fn init(self: *PML4E, addr: usize, rw: bool, pwt: u1, pcd: u1) void {
         self.present = true;
         self.rw = rw;
@@ -32,21 +34,61 @@ pub const PML4E = packed struct(u64) {
         self.addr = @truncate(addr);
     }
 
-    pub fn getPTE(self: *PML4E, virt_addr: usize) *PTE {
-        const pdptindex: u9 = (virt_addr >> 30) & 0x1FF;
-        const pdindex: u9 = (virt_addr >> 21) & 0x1FF;
-        const ptindex: u9 = (virt_addr >> 12) & 0x03FF;
-        const pdpt: *[512]PDPTE = @ptrFromInt(self.addr);
-        const pd: *[512]PDE = @ptrFromInt(pdpt[pdptindex]);
-        const pt: *[512]PTE = @ptrFromInt(pd[pdindex]);
-        return pt[ptindex];
+    /// Gets a PTE, allocating space for it if need be. The runtime overhead on this is... not great
+    /// I hate this function
+    /// BUG: Running out of memory
+    pub fn getPTE(self: *PML4E, virt_addr: usize) kallocator.MemError!*PTE {
+        const pdptindex: u9 = @truncate(virt_addr >> 30);
+        const pdindex: u9 = @truncate(virt_addr >> 21);
+        const ptindex: u9 = @truncate(virt_addr >> 12);
+        var pdpt: *[512]PDPTE = undefined;
+        if (self.addr == 0) {
+            pdpt = @ptrCast(try kallocator.get(PDPTE, 512, 4096));
+            pdpt[pdptindex].init(0, 1, 1);
+            self.addr = @truncate(arch.virtualToPhysical(@intFromPtr(pdpt)) >> 12);
+        } else {
+            pdpt = @ptrFromInt(arch.physicalToVirtual(self.addr << 12));
+        }
+        var pd: *[512]PDE = undefined;
+        if (pdpt[pdptindex].addr == 0) {
+            pd = @ptrCast(try kallocator.get(PDE, 512, 4096));
+            pd[pdindex].init(0, true, 1, 1);
+            // NOTE: arch.virtualToPhysical may not work forever
+            pdpt[pdptindex].addr = @truncate(arch.virtualToPhysical(@intFromPtr(pd)) >> 12);
+        } else {
+            pd = @ptrFromInt(arch.physicalToVirtual(pdpt[pdptindex].addr << 12));
+        }
+        var pt: *[512]PTE = undefined;
+        if (pd[pdindex].addr == 0) {
+            pt = @ptrCast(try kallocator.get(PTE, 512, 4096));
+        } else {
+            pt = @ptrFromInt(arch.physicalToVirtual(pd[pdindex].addr << 12));
+        }
+        return &pt[ptindex];
     }
 
-    pub fn map(self: *PML4E, phys_addr: usize, virt_addr: usize) void {
-        const pte: *PTE = self.getPTE(virt_addr);
-        pte.init(phys_addr, true, 1, 1, 1);
+    /// Get a physical address from a virtual
+    pub fn v2p(self: *PML4E, virt_addr: usize) usize {
+        const pte = self.getPTE(virt_addr);
+        const offset: u12 = virt_addr & 0xFFF;
+        return pte.addr + offset;
     }
 
+    /// Translates a physical addres to a virtual
+    pub fn p2v(self: *PML4E, phys_addr: usize) usize {
+        _ = self;
+        _ = phys_addr;
+        return 0;
+    }
+
+    /// Map a virtual address to a physical address
+    pub fn map(self: *PML4E, phys_addr: usize, virt_addr: usize) kallocator.MemError!void {
+        // TODO: Flush tlb
+        const pte: *PTE = try self.getPTE(virt_addr);
+        pte.init(phys_addr, true, 1, 1, true);
+    }
+
+    /// Decouple a physical and virtual address
     pub fn unmap(self: *PML4E, virt_addr: usize) void {
         const pte: *PTE = self.getPTE(virt_addr);
         pte.present = false;
@@ -62,8 +104,8 @@ const PDPTE = packed struct(u64) {
     pcd: u1 = 0,
     accessed: bool = false,
     reserved: u6 = 0,
-    addr: u48 = 0,
-    reserved2: u3 = 0,
+    addr: u40 = 0,
+    reserved2: u11 = 0,
     xd: bool = false,
 
     pub fn init(self: *PDPTE, addr: usize, pwt: u1, pcd: u1) void {
@@ -85,8 +127,8 @@ const PDE = packed struct(u64) {
     ignored1: u1 = 0,
     ps: u1 = 0,
     ignored2: u4 = 0,
-    addr: u48 = 0,
-    reserved: u3 = 0,
+    addr: u40 = 0,
+    reserved: u11 = 0,
     xd: bool = false,
 
     pub fn init(
@@ -116,8 +158,8 @@ const PTE = packed struct(u64) {
     pat: u1 = 0,
     global: bool = false,
     ignored1: u3 = 0,
-    addr: u48 = 0,
-    reserved: u3 = 0,
+    addr: u40 = 0,
+    reserved: u11 = 0,
     xd: bool = false,
 
     pub fn init(
@@ -146,8 +188,19 @@ var pml4: *PML4E = undefined;
 /// Maps the first 2 MiB
 pub fn init() void {
     defer Console.print("Paging enabled\n", .{});
-    pml4 = allocatePageTable() catch @panic("Page table allocation error");
-    //arch.setPML4(&pml4[0]);
+    pml4 = allocatePageTable() catch |err| {
+        print("Page table allocation error: {any}\n", .{err});
+        arch.wait();
+        unreachable;
+    };
+    // Identity map system memory with hhdm offset (excepting first 1MB)
+    const attempted_allocations = (kallocator.total_phys_memory / 4096) - (1000000 / 4096);
+    Console.print("Attempted page allocations: {any}\n", .{attempted_allocations});
+    Console.print("Total memory - Page memory: {any}\n", .{kallocator.total_phys_memory - attempted_allocations * 64});
+    for (1000000 / 4096..kallocator.total_phys_memory / 4096) |i| {
+        map(i * 4096, arch.hhdm_offset + (i * 4096));
+    }
+    arch.setPML4(pml4);
 }
 
 /// Runs a couple tests to make sure everything is in order before we attempt to load cr4
@@ -162,25 +215,20 @@ fn runtimeTests() PagingError!void {
     if (pml4_virtual != @intFromPtr(&pml4[0])) return PagingError.InvalidPhysicalAddress;
 }
 
+/// Allocates a new pml4 which will allocate space for page structures as needed
 pub fn allocatePageTable() kallocator.MemError!*PML4E {
-    const pt: *[512][512][512]PTE = @ptrCast(try kallocator.get(PTE, 512 * 512 * 512));
-    const pd: *[512][512]PDE = @ptrCast(try kallocator.get(PDE, 512 * 512));
-    for (0..512) |i| {
-        for (0..512) |j| {
-            pd[i][j].init(@intFromPtr(&pt[i][j][0]), true, 1, 1);
-        }
-    }
-    const pdpt: *[512]PDPTE = @ptrCast(try kallocator.get(PDPTE, 512));
-    for (0..512) |i| {
-        pdpt[i].init(@intFromPtr(&pd[i][0]), 1, 1);
-    }
-    const retval: *PML4E = @ptrCast(try kallocator.get(PML4E, 1));
-    pml4.init(@intFromPtr(&pdpt), true, 1, 1);
+    const retval: *PML4E = @ptrCast(try kallocator.get(PML4E, 1, 4096));
+    retval.init(0, true, 1, 1);
     return retval;
 }
 
 pub fn map(phys: usize, virt: usize) void {
-    pml4.map(phys, virt);
+    pml4.map(phys, virt) catch |err| {
+        Console.print("{any}\n", .{err});
+        Console.print("Attempted allocations: {any}\n", .{kallocator.allocation_attempts});
+        kallocator.printMmap();
+        @panic("Page allocation error");
+    };
 }
 
 pub fn unmap(virt: usize) void {

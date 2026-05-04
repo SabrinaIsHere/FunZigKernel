@@ -7,6 +7,7 @@ var panicked = false;
 pub fn panic(msg: []const u8, _: ?*builtin.StackTrace, _: ?usize) noreturn {
     panicked = true;
     // TODO: Print to screen as well
+    Serial.printString("kpanic: ");
     Serial.printString(msg);
     Serial.printString("\n");
     // Wait forever
