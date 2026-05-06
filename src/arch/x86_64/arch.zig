@@ -183,26 +183,21 @@ pub fn setPML4(pml4: *Paging.PML4E) void {
     Console.print("Loading page tables...\n", .{});
     defer Console.print("New page tables loaded\n", .{});
     const phys_addr: usize = virtualToPhysical(@intFromPtr(pml4));
-    const cr3_val = (phys_addr << 12);
-    Console.print("Physical address (set cr3): 0x{X}\n", .{phys_addr});
-    // BUG: Crashes everything, likely the page table isn't mapping the kernel correctly
+    // BUG: Page fault into triple fault
+    // Almost certainly invalid page tables
     asm volatile (
         \\ mov %[pml4], %%cr3 
         :
-        : [pml4] "{rax}" (cr3_val),
+        : [pml4] "{rax}" (phys_addr),
     );
 }
 
 /// Get the current PML4 from cr3
 pub fn getPML4() *Paging.PML4E {
-    var cr3: u64 = 0;
-    asm volatile ("mov %%cr3, %[out]"
-        : [out] "={rax}" (cr3),
+    const cr3: u64 = asm volatile ("mov %%cr3, %[out]"
+        : [out] "={rax}" (-> u64),
     );
-    const addr = physicalToVirtual(cr3 >> 12) & 0xFFFFFFFFFFFFFFF0;
-    Console.print("cr3: 0x{X}, {any}\nAddr: 0x{X}\n", .{ cr3 >> 12, (cr3 >> 12) % 16, addr });
-    // BUG: The address I'm getting here doesn't seem to be valid
-    return @ptrFromInt((addr));
+    return @ptrFromInt(physicalToVirtual(cr3 & 0x000FFFFFFFFFF000));
 }
 
 /// Initialize hhdm related data

@@ -25,6 +25,7 @@ pub fn build(b: *std.Build) !void {
     const gdb = b.option(bool, "gdb", "Debug with GDB") orelse false;
     const log = b.option(bool, "log", "Enable Qemu logs") orelse false;
     const graphical = b.option(bool, "graphical", "Enable graphical Qemu output") orelse true;
+    const monitor = b.option(bool, "monitor", "Enable monitor on stdio instead of serial") orelse false;
     const shutdown = b.option(bool, "shutdown", "Allow/disallow qemu to shut down") orelse false;
     const emit_asm = b.option(bool, "asm", "Emit kernel.s") orelse false;
     //const mem = b.option(u32, "mem", "Define the number megabytes of memory available") orelse 1024;
@@ -106,7 +107,6 @@ pub fn build(b: *std.Build) !void {
         "-smp", "1",
         "--no-reboot",
         "-net", "none",
-        "-serial", "mon:stdio",
         "-drive", "if=pflash,format=raw,unit=0,file=./ovmf/OVMF_CODE.fd,readonly=on", // For acpi 2.0+
         "-drive", "if=pflash,format=raw,unit=1,file=./ovmf/OVMF_VARS.fd", // For acpi 2.0+
         "-cdrom", "kernel.iso",
@@ -117,6 +117,11 @@ pub fn build(b: *std.Build) !void {
     qemu_cmd.addPrefixedFileArg("format=raw,file=fat:rw:", wf.getDirectory());
     if (gdb) qemu_cmd.addArgs(&[_][]const u8 {"-S", "-s"});
     if (!shutdown) qemu_cmd.addArg("--no-shutdown");
+    if (monitor) {
+        qemu_cmd.addArgs(&[_][]const u8 {"-monitor", "stdio"});
+    } else {
+        qemu_cmd.addArgs(&[_][]const u8 {"-serial", "mon:stdio"});
+    }
     if (log) {
         qemu_cmd.addArgs(&[_][]const u8 {"-D", "./qemu.log", "-d", "int"});
     } else {

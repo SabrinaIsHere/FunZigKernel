@@ -61,7 +61,9 @@ pub fn init() void {
     // Walk mmap response, filling out internal structure
     const limine_mmap = main.mmap_request.response orelse @panic("Memory map not provided");
     //Console.print("Limine mmap: {any}\n", .{limine_mmap.getEntries()});
+    var highest_base = limine_mmap.getEntries()[0];
     for (limine_mmap.getEntries(), 0..limine_mmap.entry_count) |entry, _| {
+        if (entry.type != .reserved and highest_base.base < entry.base) highest_base = entry;
         // Ignore anything under 1 MB for obvious reasons
         // NOTE: This will probably break if I try to load modules, I'll need to reference the base also passed
         if (entry.type == LimineMmapType.executable_and_modules) {
@@ -78,15 +80,13 @@ pub fn init() void {
         };
         num_entries += 1;
     }
+    total_phys_memory = highest_base.base + highest_base.length;
 }
 
-// TODO: Remove this
-pub var allocation_attempts: usize = 0;
 /// Allocate a regian of memory to create the requested object. If one can't be found, throws an error
 /// Tries to allocate the memory right above the kernel
 /// Zeroes out all memory allocated
 pub fn get(obj: type, num: usize, alignment: usize) MemError![*]obj {
-    allocation_attempts += 1;
     if (num == 0) return MemError.InvalidRequest;
     const len = @sizeOf(obj) * num;
     for (mmap, 0..) |_, i| {
@@ -106,7 +106,7 @@ pub fn get(obj: type, num: usize, alignment: usize) MemError![*]obj {
         } else {
             insertEntry(i, .{
                 .base = ret_base,
-                .length = len,
+                .length = len + align_val,
                 .type = .KData,
             });
             num_entries += 1;

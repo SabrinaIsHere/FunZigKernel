@@ -1,28 +1,32 @@
+//! Deals with paging
+//! When I'm less sick of looking at this file I should circle back and clean it up a little it's pretty gnarly
+//! I should really reevalute the ****.addr = 0 thing
+
 const arch = @import("arch.zig");
 const Console = arch.Console;
 const print = Console.print;
 const kallocator = @import("../../memory/kallocator.zig");
 const main = @import("../../main.zig");
 
-// TODO: Parse and copy limine paging structure
-
 const PagingError = error{
+    UnmappedAddress,
     InvalidPhysicalAddress,
+    InvalidAddressTranslation,
 };
 
 /// References a PDPT
 /// Handles mapping logic
 pub const PML4E = packed struct(u64) {
-    present: bool = true,
-    rw: bool = true,
-    us: u1 = 1,
+    present: bool = false,
+    rw: bool = false,
+    us: u1 = 0,
     pwt: u1 = 0,
     pcd: u1 = 0,
     accessed: bool = false,
     reserved1: u6 = 0,
     addr: u40 = 0,
     reserved2: u11 = 0,
-    xd: u1 = 0,
+    xd: bool = false,
 
     /// Sets present bit and initializes data
     /// If there is no PDPT, set address to 0
@@ -32,35 +36,53 @@ pub const PML4E = packed struct(u64) {
         self.pwt = pwt;
         self.pcd = pcd;
         self.addr = @truncate(addr);
+        self.xd = true;
+    }
+
+    /// Copy the mappings from another pml4e. Quiet fails
+    /// I really hate this function lol
+    pub fn copyMappings(self: *PML4E, copied: *PML4E) !void {
+        if (!copied.present) return;
+        const pdpt: *[512]PDPTE = @ptrFromInt(arch.physicalToVirtual(copied.addr << 12));
+        for (0..512) |i| {
+            if (pdpt[i].present) for (0..512) |j| {
+                // This doesn't belong in the loop but this is more compact so
+                const pd: *[512]PDE = @ptrFromInt(arch.physicalToVirtual(pdpt[i].addr << 12));
+                if (pd[j].present) for (0..512) |k| {
+                    const pt: *[512]PTE = @ptrFromInt(arch.physicalToVirtual(pd[j].addr << 12));
+                    if (pt[k].present) {
+                        const pte = try self.getPTE(i << 30 | j << 21 | k << 12);
+                        pte.init(pt[k].addr, pt[k].rw, pt[k].pwt, pt[k].pcd, pt[k].global);
+                    }
+                };
+            };
+        }
     }
 
     /// Gets a PTE, allocating space for it if need be. The runtime overhead on this is... not great
     /// I hate this function
-    /// BUG: Running out of memory
     pub fn getPTE(self: *PML4E, virt_addr: usize) kallocator.MemError!*PTE {
         const pdptindex: u9 = @truncate(virt_addr >> 30);
         const pdindex: u9 = @truncate(virt_addr >> 21);
         const ptindex: u9 = @truncate(virt_addr >> 12);
         var pdpt: *[512]PDPTE = undefined;
-        if (self.addr == 0) {
+        if (!self.present) {
             pdpt = @ptrCast(try kallocator.get(PDPTE, 512, 4096));
-            pdpt[pdptindex].init(0, 1, 1);
-            self.addr = @truncate(arch.virtualToPhysical(@intFromPtr(pdpt)) >> 12);
+            self.init(arch.virtualToPhysical(@intFromPtr(pdpt)) >> 12, true, 0, 0);
         } else {
             pdpt = @ptrFromInt(arch.physicalToVirtual(self.addr << 12));
         }
         var pd: *[512]PDE = undefined;
-        if (pdpt[pdptindex].addr == 0) {
+        if (!pdpt[pdptindex].present) {
             pd = @ptrCast(try kallocator.get(PDE, 512, 4096));
-            pd[pdindex].init(0, true, 1, 1);
-            // NOTE: arch.virtualToPhysical may not work forever
-            pdpt[pdptindex].addr = @truncate(arch.virtualToPhysical(@intFromPtr(pd)) >> 12);
+            pdpt[pdptindex].init(arch.virtualToPhysical(@intFromPtr(pd)) >> 12, 0, 0);
         } else {
             pd = @ptrFromInt(arch.physicalToVirtual(pdpt[pdptindex].addr << 12));
         }
         var pt: *[512]PTE = undefined;
-        if (pd[pdindex].addr == 0) {
+        if (!pd[pdindex].present) {
             pt = @ptrCast(try kallocator.get(PTE, 512, 4096));
+            pd[pdindex].init(arch.virtualToPhysical(@intFromPtr(pt)) >> 12, true, 0, 0);
         } else {
             pt = @ptrFromInt(arch.physicalToVirtual(pd[pdindex].addr << 12));
         }
@@ -68,16 +90,17 @@ pub const PML4E = packed struct(u64) {
     }
 
     /// Get a physical address from a virtual
-    pub fn v2p(self: *PML4E, virt_addr: usize) usize {
-        const pte = self.getPTE(virt_addr);
-        const offset: u12 = virt_addr & 0xFFF;
-        return pte.addr + offset;
+    pub fn v2p(self: *PML4E, virt_addr: usize) PagingError!usize {
+        const pte = self.getPTE(virt_addr) catch return PagingError.UnmappedAddress;
+        const offset: u12 = @truncate(virt_addr);
+        return (pte.addr << 12) + offset;
     }
 
     /// Translates a physical addres to a virtual
     pub fn p2v(self: *PML4E, phys_addr: usize) usize {
         _ = self;
         _ = phys_addr;
+        print("Don't call p2v!\n", .{});
         return 0;
     }
 
@@ -85,7 +108,7 @@ pub const PML4E = packed struct(u64) {
     pub fn map(self: *PML4E, phys_addr: usize, virt_addr: usize) kallocator.MemError!void {
         // TODO: Flush tlb
         const pte: *PTE = try self.getPTE(virt_addr);
-        pte.init(phys_addr, true, 1, 1, true);
+        pte.init(phys_addr >> 12, true, 0, 0, false);
     }
 
     /// Decouple a physical and virtual address
@@ -113,6 +136,7 @@ const PDPTE = packed struct(u64) {
         self.pwt = pwt;
         self.pcd = pcd;
         self.addr = @truncate(addr);
+        self.xd = true;
     }
 };
 
@@ -143,6 +167,7 @@ const PDE = packed struct(u64) {
         self.rw = rw;
         self.pwt = pwt;
         self.pcd = pcd;
+        self.xd = true;
     }
 };
 
@@ -176,61 +201,83 @@ const PTE = packed struct(u64) {
         self.pcd = pcd;
         self.global = global;
         self.addr = @truncate(addr);
+        self.xd = true;
     }
 };
 
-/// Pointer to paging structures setup by limine. Virtual address
-var pml4: *PML4E = undefined;
-
-// TODO: When there's a functional allocator this should stop being static
+/// Pointer to PML4 loaded by cpu
+var pml4: *[512]PML4E = undefined;
 
 /// Initialize and enable paging
-/// Maps the first 2 MiB
+/// Identity maps first 1 MB, then the rest of system memory is identity mapped with the hhdm offset
 pub fn init() void {
     defer Console.print("Paging enabled\n", .{});
-    pml4 = allocatePageTable() catch |err| {
-        print("Page table allocation error: {any}\n", .{err});
-        arch.wait();
-        unreachable;
-    };
-    // Identity map system memory with hhdm offset (excepting first 1MB)
-    const attempted_allocations = (kallocator.total_phys_memory / 4096) - (1000000 / 4096);
-    Console.print("Attempted page allocations: {any}\n", .{attempted_allocations});
-    Console.print("Total memory - Page memory: {any}\n", .{kallocator.total_phys_memory - attempted_allocations * 64});
-    for (1000000 / 4096..kallocator.total_phys_memory / 4096) |i| {
-        map(i * 4096, arch.hhdm_offset + (i * 4096));
+    //pml4 = @ptrCast(arch.getPML4());
+    pml4 = allocatePageTable() catch @panic("Insufficient memory to allocate page tables");
+
+    const num_pages = kallocator.total_phys_memory >> 12;
+    print("Pages: {any}\n", .{num_pages});
+
+    for (0..num_pages) |i| {
+        map(i << 12, arch.physicalToVirtual(i << 12));
     }
-    arch.setPML4(pml4);
+
+    print("pml4: 0x{X}\n", .{@intFromPtr(pml4)});
+
+    runtimeTests() catch |err| {
+        print("{any}\n", .{err});
+        @panic("paging: Runtime tests failed");
+    };
+    arch.setPML4(&pml4[0]);
 }
 
 /// Runs a couple tests to make sure everything is in order before we attempt to load cr4
 /// Only for use when debugging
 fn runtimeTests() PagingError!void {
-    // Check that the physical address is translating
-    // NOTE: This isn't doing anything, figure out how to verify a physical address
-    const pml4_physical: usize = arch.virtualToPhysical(@intFromPtr(&pml4[0]));
-    Console.print("PML4 Physical: 0x{X}\n", .{pml4_physical});
-    const pml4_virtual: usize = arch.physicalToVirtual(pml4_physical);
-    Console.print("PML4 Virtual: 0x{X}\n", .{pml4_virtual});
-    if (pml4_virtual != @intFromPtr(&pml4[0])) return PagingError.InvalidPhysicalAddress;
+    const test_addr: usize = arch.physicalToVirtual(try v2p(@intFromPtr(pml4)));
+    if (@intFromPtr(pml4) != test_addr) {
+        print("Actual vs. Translated: 0x{X}, 0x{X}\n", .{ @intFromPtr(pml4), test_addr });
+        return PagingError.InvalidAddressTranslation;
+    }
 }
 
-/// Allocates a new pml4 which will allocate space for page structures as needed
-pub fn allocatePageTable() kallocator.MemError!*PML4E {
-    const retval: *PML4E = @ptrCast(try kallocator.get(PML4E, 1, 4096));
-    retval.init(0, true, 1, 1);
+/// Allocates a new pml4 table which will allocate space for page structures as needed
+fn allocatePageTable() kallocator.MemError!*[512]PML4E {
+    const retval: *[512]PML4E = @ptrCast(try kallocator.get(PML4E, 512, 4096));
+    //for (0..512) |i| try retval[i].copyMappings(&pml4[i]);
     return retval;
 }
 
+/// Allocates a new pml4 table meant for userspace which will allocate space for page structures as needed
+fn allocateUserPageTable() kallocator.MemError!*[512]PML4E {
+    const retval: *[512]PML4E = @ptrCast(try kallocator.get(PML4E, 512, 4096));
+    for (256..512) |i| try retval[i].copyMappings(&pml4[i]);
+    return retval;
+}
+
+fn getPML4Index(virt: usize) u9 {
+    return @truncate(virt >> 39);
+}
+
+// This is kind of screwy because I'm dumb and misunderstood something early on, I don't love how the logic
+// splits across functions like this
+
 pub fn map(phys: usize, virt: usize) void {
-    pml4.map(phys, virt) catch |err| {
+    const pml4e = &pml4[getPML4Index(virt)];
+    pml4e.map(phys, virt) catch |err| {
         Console.print("{any}\n", .{err});
-        Console.print("Attempted allocations: {any}\n", .{kallocator.allocation_attempts});
         kallocator.printMmap();
         @panic("Page allocation error");
     };
 }
 
 pub fn unmap(virt: usize) void {
-    pml4.unmap(virt);
+    const pml4e = &pml4[getPML4Index(virt)];
+    pml4e.unmap(virt);
+}
+
+pub fn v2p(virt: usize) PagingError!usize {
+    const pml4e = &pml4[getPML4Index(virt)];
+    if (!pml4e.present) return PagingError.UnmappedAddress;
+    return pml4e.v2p(virt);
 }
