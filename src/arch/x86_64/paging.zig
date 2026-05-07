@@ -42,20 +42,41 @@ pub const PML4E = packed struct(u64) {
     /// Copy the mappings from another pml4e. Quiet fails
     /// I really hate this function lol
     pub fn copyMappings(self: *PML4E, copied: *PML4E) !void {
+        // It'd be nice to do this with @memcpy but then I'd have to handle allocation logic here and I had
+        // a hard enough time with getPTE
         if (!copied.present) return;
+        // Get pdpt
         const pdpt: *[512]PDPTE = @ptrFromInt(arch.physicalToVirtual(copied.addr << 12));
+        // Iterate through it
         for (0..512) |i| {
-            if (pdpt[i].present) for (0..512) |j| {
-                // This doesn't belong in the loop but this is more compact so
-                const pd: *[512]PDE = @ptrFromInt(arch.physicalToVirtual(pdpt[i].addr << 12));
-                if (pd[j].present) for (0..512) |k| {
-                    const pt: *[512]PTE = @ptrFromInt(arch.physicalToVirtual(pd[j].addr << 12));
-                    if (pt[k].present) {
+            // Skip if not present
+            if (!pdpt[i].present) continue;
+            // Get page directory
+            const pd: *[512]PDE = @ptrFromInt(arch.physicalToVirtual(pdpt[i].addr << 12));
+            // Iterate page directory
+            for (0..512) |j| {
+                // Skip if not present
+                if (!pd[j].present) continue;
+                // Handle 2 MB pages
+                if (pd[j].ps == 1) {
+                    for (0..512) |k| {
                         const pte = try self.getPTE(i << 30 | j << 21 | k << 12);
-                        pte.init(pt[k].addr, pt[k].rw, pt[k].pwt, pt[k].pcd, pt[k].global);
+                        pte.init(pd[j].addr + (k * 4096), pd[j].rw, pd[j].pwt, pd[j].pcd, false);
+                        pte.us = pd[j].us;
+                        pte.xd = pd[j].xd;
                     }
-                };
-            };
+                    continue;
+                }
+                // Handle page tables
+                const pt: *[512]PTE = @ptrFromInt(arch.physicalToVirtual(pd[j].addr << 12));
+                for (0..512) |k| {
+                    if (!pt[k].present) continue;
+                    const pte = try self.getPTE(i << 30 | j << 21 | k << 12);
+                    pte.init(pt[k].addr, pt[k].rw, pt[k].pwt, pt[k].pcd, pt[k].global);
+                    pte.us = pt[k].us;
+                    pte.xd = pt[k].xd;
+                }
+            }
         }
     }
 
@@ -212,15 +233,15 @@ var pml4: *[512]PML4E = undefined;
 /// Identity maps first 1 MB, then the rest of system memory is identity mapped with the hhdm offset
 pub fn init() void {
     defer Console.print("Paging enabled\n", .{});
-    //pml4 = @ptrCast(arch.getPML4());
+    pml4 = @ptrCast(arch.getPML4());
     pml4 = allocatePageTable() catch @panic("Insufficient memory to allocate page tables");
 
     const num_pages = kallocator.total_phys_memory >> 12;
     print("Pages: {any}\n", .{num_pages});
 
-    for (0..num_pages) |i| {
-        map(i << 12, arch.physicalToVirtual(i << 12));
-    }
+    //for (0..num_pages) |i| {
+    //    map(i << 12, arch.physicalToVirtual(i << 12));
+    //}
 
     print("pml4: 0x{X}\n", .{@intFromPtr(pml4)});
 
@@ -244,7 +265,7 @@ fn runtimeTests() PagingError!void {
 /// Allocates a new pml4 table which will allocate space for page structures as needed
 fn allocatePageTable() kallocator.MemError!*[512]PML4E {
     const retval: *[512]PML4E = @ptrCast(try kallocator.get(PML4E, 512, 4096));
-    //for (0..512) |i| try retval[i].copyMappings(&pml4[i]);
+    for (0..512) |i| try retval[i].copyMappings(&pml4[i]);
     return retval;
 }
 

@@ -125,7 +125,7 @@ pub fn build(b: *std.Build) !void {
     if (log) {
         qemu_cmd.addArgs(&[_][]const u8 {"-D", "./qemu.log", "-d", "int"});
     } else {
-        //qemu_cmd.addArgs(&[_][]const u8 {"--enable-kvm", "-cpu", "host"});
+        qemu_cmd.addArgs(&[_][]const u8 {"--enable-kvm", "-cpu", "host"});
     }
     if (!graphical) qemu_cmd.addArgs(&[_][]const u8 {"-nographic"});
     // zig fmt: on
