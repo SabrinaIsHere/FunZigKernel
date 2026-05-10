@@ -82,6 +82,10 @@ pub fn build(b: *std.Build) !void {
     exe.link_z_max_page_size = 4096;
     b.installArtifact(exe);
 
+    // Cache firmware files because something keeps corrupting OVMF_VARS.fd
+    const firmware_wf = b.addNamedWriteFiles("firmware");
+    const ovmf = firmware_wf.addCopyDirectory(b.path("ovmf"), "ovmf", .{});
+
     // Cache area to generate the kernel.iso
     const wf = b.addNamedWriteFiles("isodir");
     const isodir = wf.addCopyDirectory(b.path("iso-template"), "root", .{});
@@ -107,14 +111,17 @@ pub fn build(b: *std.Build) !void {
         "-smp", "1",
         "--no-reboot",
         "-net", "none",
-        "-drive", "if=pflash,format=raw,unit=0,file=./ovmf/OVMF_CODE.fd,readonly=on", // For acpi 2.0+
-        "-drive", "if=pflash,format=raw,unit=1,file=./ovmf/OVMF_VARS.fd", // For acpi 2.0+
         "-cdrom", "kernel.iso",
     });
     // Add the actual iso directory with the kernel binary as a drive to qemu
     qemu_cmd.step.dependOn(&mk_iso_cmd.step);
+    qemu_cmd.step.dependOn(&firmware_wf.step);
     qemu_cmd.addArg("-drive");
     qemu_cmd.addPrefixedFileArg("format=raw,file=fat:rw:", wf.getDirectory());
+    qemu_cmd.addArg("-drive");
+    qemu_cmd.addPrefixedFileArg("if=pflash,format=raw,unit=0,readonly=on,file=", ovmf.path(b, "OVMF_CODE.fd"));
+    qemu_cmd.addArg("-drive");
+    qemu_cmd.addPrefixedFileArg("if=pflash,format=raw,unit=1,file=", ovmf.path(b, "OVMF_VARS.fd"));
     if (gdb) qemu_cmd.addArgs(&[_][]const u8 {"-S", "-s"});
     if (!shutdown) qemu_cmd.addArg("--no-shutdown");
     if (monitor) {
@@ -125,16 +132,20 @@ pub fn build(b: *std.Build) !void {
     if (log) {
         qemu_cmd.addArgs(&[_][]const u8 {"-D", "./qemu.log", "-d", "int"});
     } else {
-        qemu_cmd.addArgs(&[_][]const u8 {"--enable-kvm", "-cpu", "host"});
+        //qemu_cmd.addArgs(&[_][]const u8 {"--enable-kvm", "-cpu", "host"});
     }
     if (!graphical) qemu_cmd.addArgs(&[_][]const u8 {"-nographic"});
     // zig fmt: on
     //qemu_cmd.addArg("-kernel");
     //qemu_cmd.addFileArg(kernel_path);
+    // Tricks it into rewriting those files into the cache
+    const firmware_clean_cmd = b.addSystemCommand(&[_][]const u8{"touch"});
+    firmware_clean_cmd.addFileArg(b.path("ovmf/*"));
+    firmware_clean_cmd.step.dependOn(&qemu_cmd.step);
 
     // How the user tells zig to run qem
     const run_step = b.step("run", "Run kernel with qemu");
-    run_step.dependOn(&qemu_cmd.step);
+    run_step.dependOn(&firmware_clean_cmd.step);
 
     // Clean out the cache and output directories
     const rm_cmd = b.addSystemCommand(&[_][]const u8{

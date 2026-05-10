@@ -10,6 +10,7 @@ const Apic = @import("apic.zig");
 const IO = @import("../../io/io.zig");
 const Paging = @import("paging.zig");
 const main = @import("../../main.zig");
+const kallocator = @import("../../memory/kallocator.zig");
 pub const Drivers = @import("drivers/drivers.zig");
 pub const Console = IO.Console;
 
@@ -180,11 +181,7 @@ pub fn k_panic(comptime msg: []const u8) noreturn {
 /// Loads the pml4 into the processor
 /// Expects pml4 to be a virtual address
 pub fn setPML4(pml4: *Paging.PML4E) void {
-    Console.print("Loading page tables...\n", .{});
-    defer Console.print("New page tables loaded\n", .{});
     const phys_addr: usize = virtualToPhysical(@intFromPtr(pml4));
-    // BUG: Page fault into triple fault
-    // Almost certainly invalid page tables
     asm volatile (
         \\ mov %[pml4], %%cr3 
         :
@@ -218,5 +215,10 @@ pub inline fn virtualToPhysical(addr: usize) usize {
 
 /// Translates a phyiscal address to a virtual via hhdm
 pub inline fn physicalToVirtual(addr: usize) usize {
-    return addr + hhdm_offset;
+    // NOTE: Not entirely sure that this is correct
+    if (addr >= k_phys_base and addr - k_phys_base < kallocator.kernel_length) {
+        return (addr - k_phys_base) + k_virt_base;
+    } else {
+        return addr + hhdm_offset;
+    }
 }

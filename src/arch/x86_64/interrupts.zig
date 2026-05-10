@@ -91,6 +91,6 @@ fn handlePF(ctx: *CTX) void {
         "===Page fault===\nAttempted access to 0x{X} at 0x{X}\n",
         .{ ctx.registers.CR2, ctx.rip },
     );
-    //ctx.print();
+    ctx.print();
     arch.wait();
 }

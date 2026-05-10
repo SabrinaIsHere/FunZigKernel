@@ -118,6 +118,7 @@ pub fn get(obj: type, num: usize, alignment: usize) MemError![*]obj {
     return MemError.NoMemoryAvailable;
 }
 
+/// Helper function, inserts a memory map entry at the specified location
 fn insertEntry(index: usize, entry: MemMapE) void {
     var i = num_entries;
     if (i >= 127) @panic("kallocator.zig: insertEntry: buffer overflow");
