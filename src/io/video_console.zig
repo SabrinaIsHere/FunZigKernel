@@ -11,10 +11,15 @@ const Drivers = arch.Drivers;
 const Framebuffer = Drivers.Framebuffer;
 const Font = @import("../misc/font.zig");
 
+/// Number of pixels on each side of a letter
 const letter_quantum = 8;
+/// Keeps track of where the next letter should be printed. Letter coordinates, not pixel
 var x: usize = 0;
+/// Keeps track of where the next letter should be printed. Letter coordinates, not pixel
 var y: usize = 0;
+/// Maximum value y can safely be
 var max_x: usize = 0;
+/// Maximum value x can safely be
 var max_y: usize = 0;
 
 /// Initializes the font and fromebuffer as well as some constants
@@ -25,17 +30,18 @@ pub fn init() void {
     max_y = Framebuffer.height / letter_quantum;
 }
 
+/// Clears screen
 pub fn clear() void {
     Framebuffer.clear();
 }
 
 /// Essentially a newline
-// TODO: Scrolling/text buffer stuff
 fn incrementY() void {
     if (y + 1 >= max_y) {
-        clear();
-        y = 0;
-        x = 0;
+        // BUG: Watch out for this being wrong
+        Framebuffer.shiftUp(0, @bitCast((y * letter_quantum) - 1)) catch @panic("Framebuffer coordinate error");
+        y -= 1;
+        x -= 1;
     } else {
         y += 1;
         x = 0;
@@ -75,6 +81,17 @@ fn printChar(c: u8) void {
 /// Print a string to the console
 pub fn printString(s: []const u8) void {
     for (s) |c| printChar(c);
+}
+
+/// Print a string at the specified location
+/// If line is negative index from the bottom of the screen, python style
+pub fn printStringAt(s: []const u8, line: i32) void {
+    const temp_y = y;
+    const temp_x = x;
+    y = if (line < 0) max_y + line + 1 else line;
+    printString(s);
+    y = temp_y;
+    x = temp_x;
 }
 
 /// Drains buffer
