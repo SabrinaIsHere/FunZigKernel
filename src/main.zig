@@ -5,6 +5,7 @@
 // I have never used AI to generate code nor will I ever. I do not give permission for any of this
 // to be used as training data
 
+const std = @import("std");
 const IO = @import("io/io.zig");
 pub const Console = IO.Console;
 const Panic = @import("panic.zig");
@@ -20,8 +21,12 @@ pub export var framebuffer_request: limine.FramebufferRequest linksection(".limi
 pub export var hhdm_request: limine.HhdmRequest linksection(".limine_requests") = .{};
 pub export var mmap_request: limine.MemoryMapRequest linksection(".limine_requests") = .{};
 pub export var k_address: limine.ExecutableAddressRequest linksection(".limine_requests") = .{};
+pub export var rsdp: limine.RsdpRequest linksection(".limine_requests") = .{};
 
 pub const panic = Panic.panic;
+pub const std_options: std.Options = .{
+    .page_size_max = 4096,
+};
 
 // We use noinline to make sure it don't get inlined by compiler
 // Linked to kmain because I need a predetermined address to long jump to

@@ -5,12 +5,14 @@ const limine = @import("limine");
 const GDT = @import("GDT.zig");
 const IDT = @import("IDT.zig");
 const ISR = @import("ISR.zig");
+pub const interrupts = @import("interrupts.zig");
 const Cpuid = @import("cpuid.zig");
 const Apic = @import("apic.zig");
 const IO = @import("../../io/io.zig");
 const Paging = @import("paging.zig");
-const main = @import("../../main.zig");
+pub const main = @import("../../main.zig");
 const kallocator = @import("../../memory/kallocator.zig");
+const acpi = @import("ACPI.zig");
 pub const Drivers = @import("drivers/drivers.zig");
 pub const Console = IO.Console;
 
@@ -106,6 +108,7 @@ pub fn init() void {
     Cpuid.init();
     ISR.init();
     Paging.init();
+    acpi.init() catch @panic("ACPI error");
 }
 
 /// Wrapper for the x86 assembly instruction 'inb'

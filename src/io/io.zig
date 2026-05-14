@@ -23,4 +23,9 @@ pub const Console = struct {
         Serial.print(fmt, args);
         VideoConsole.print(fmt, args);
     }
+    /// Called by drivers handling data input
+    pub fn registerKeypress(c: u8) void {
+        // TODO: Command logic
+        print("{any}", .{c});
+    }
 };

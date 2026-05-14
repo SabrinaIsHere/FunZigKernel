@@ -1,7 +1,7 @@
 const arch = @import("arch.zig");
 const Console = arch.Console;
 const Isr = @import("ISR.zig");
-const CTX = Isr.CTX;
+pub const CTX = Isr.CTX;
 
 pub const ErrorVectors = enum(u16) {
     DivideError,
@@ -62,10 +62,17 @@ pub fn isrSelect(ctx: *CTX) callconv(.c) void {
     handlers[ctx.vector](ctx);
 }
 
+/// Registers appropriate functions as handlers
 pub fn init() void {
+    // TODO: IRQs
     handlers[@intFromEnum(ErrorVectors.GeneralProtection)] = handleGP;
     handlers[@intFromEnum(ErrorVectors.PageFault)] = handlePF;
     handlers[@intFromEnum(ErrorVectors.InvalidOpcode)] = handleUD;
+}
+
+/// Register a function to handle an interrupt
+pub fn register(func: Handler, vector: u16) void {
+    handlers[vector] = func;
 }
 
 // Some basic error handling. These will likely be moved at some point when the codebase is more fleshed out

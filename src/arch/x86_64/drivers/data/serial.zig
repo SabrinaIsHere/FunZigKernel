@@ -4,6 +4,7 @@
 const std = @import("std");
 const native_endian = @import("builtin").target.cpu.arch.endian();
 const arch = @import("../../arch.zig");
+const interrupts = arch.interrupts;
 const in = arch.in;
 const out = arch.out;
 
@@ -13,19 +14,21 @@ const SerialError = error{
 };
 
 /// Struct representing a fifo serial port. Use as pointer with serial address
-const SyncSerialPort = struct {
+const SerialPort = struct {
     port: u16,
     /// Initializes and tests this serial port using 8N1
-    pub fn init(com: u16) !SyncSerialPort {
+    pub fn init(com: u16, read_interrupt: bool) !SerialPort {
+        _ = read_interrupt;
         // TODO: look into the default baud, this is a placeholder
         // TODO: hardware handshaking? if I ever need it
-        var self = SyncSerialPort{
+        var self = SerialPort{
             .port = com,
         };
 
         self.setBaud(10);
-        // Disable interrupts
-        out(com + 1, @as(u8, 0));
+        // Set interrupts enabled or not
+        //out(com + 1, @as(u8, if (read_interrupt) 0b00001111 else 0));
+        out(com + 1, @as(u8, 0b00000001));
         // Character length of 8, 1 stop bit, 0 parity bits
         // Typically for text you use 7 bit length but I don't want the headache in case I wanna send
         // numbers
@@ -34,13 +37,13 @@ const SyncSerialPort = struct {
         out(com + 4, @as(u8, 0b00010000));
         self.write('t') catch return SerialError.NonfunctionalPort;
         if ((self.read() catch return SerialError.NonfunctionalPort) != 't') return SerialError.NonfunctionalPort;
-        out(com + 4, @as(u8, 0b0));
+        out(com + 4, @as(u8, 0b00000100));
 
         return self;
     }
 
     /// Uses DLAB bit to set the divisor register and control the transmission rate
-    pub fn setBaud(self: SyncSerialPort, divisor: u16) void {
+    pub fn setBaud(self: SerialPort, divisor: u16) void {
         // TODO: Maybe I should save and restore port + 0 and port + 1? idk
         // Set DLAB bit
         out(self.port + 3, @as(u8, 0b10000000));
@@ -61,7 +64,7 @@ const SyncSerialPort = struct {
     }
 
     /// Reads a byte from the serial port. Will time out if it waits longer than .5 seconds
-    pub fn read(self: *volatile SyncSerialPort) !u8 {
+    pub fn read(self: *volatile SerialPort) !u8 {
         // Check the data ready field in line status
         // TODO: Proper timeout
 
@@ -77,7 +80,7 @@ const SyncSerialPort = struct {
     }
 
     /// Writes a byte to the serial port. Will time out if it waits longer than .5 seconds
-    pub fn write(self: SyncSerialPort, char: u8) !void {
+    pub fn write(self: SerialPort, char: u8) !void {
         // Check the transmitter holding register empty field in line status
         // TODO: Proper timeout
 
@@ -95,11 +98,16 @@ const SyncSerialPort = struct {
 
 // Common port locations to check, although it'll almost certainly be the first
 const COM1: u16 = 0x3F8;
-var port: SyncSerialPort = undefined;
+var port: SerialPort = undefined;
 
 /// Finds and remembers functional serial port
 pub fn init() !void {
-    port = try SyncSerialPort.init(COM1);
+    port = try SerialPort.init(COM1, true);
+    //interrupts.register(handleInterrupt, 0x1);
+}
+
+fn handleInterrupt(ctx: *interrupts.CTX) void {
+    _ = ctx;
 }
 
 /// Loops over input and prints it. Quietly ignores errors since this is largely for logging
