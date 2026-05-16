@@ -70,7 +70,7 @@ const SDTHeader = extern struct {
         return sum1;
     }
 
-    pub fn GetData(self: *SDTHeader, T: type) align(1) []align(1) T {
+    pub fn getData(self: *SDTHeader, T: type) align(1) []align(1) T {
         const num: u32 = (self.length - @sizeOf(SDTHeader)) / @sizeOf(T);
         const arr: [*]align(1) T = @ptrFromInt(@intFromPtr(self) + @sizeOf(SDTHeader));
         return arr[0..num];
@@ -87,14 +87,16 @@ const MADTEType = enum(u8) {
     local_x2apic,
 };
 
+/// Standard MADTE header and accompanying data retrieval function
 const MADTEHeader = packed struct {
     type: MADTEType,
     length: u8,
 
-    pub fn GetData(self: *MADTEHeader, T: type) align(1) []align(1) T {
-        const num: u32 = (self.length - @sizeOf(SDTHeader)) / @sizeOf(T);
-        const arr: [*]align(1) T = @ptrFromInt(@intFromPtr(self) + @sizeOf(SDTHeader));
-        return arr[0..num];
+    /// Returns data in specified type. Does not include standard header
+    pub fn getData(self: *MADTEHeader, T: type) align(1) []align(1) T {
+        const arr: [*]u8 = @ptrCast(self);
+        // Don't include standard header
+        return @ptrCast(arr[@sizeOf(@This())..self.length]);
     }
 };
 
@@ -114,7 +116,7 @@ pub fn init() AcpiError!void {
     xsdt = @ptrFromInt(arch.physicalToVirtual(xsdp.xsdt_address));
     if (!std.mem.eql(u8, &xsdt.signature, "XSDT") or xsdt.sum() != 0) return AcpiError.InvalidXSDT;
     // Table is valid, now to get tables I actually want
-    const acpi_tables = xsdt.GetData(usize);
+    const acpi_tables = xsdt.getData(usize);
     for (acpi_tables) |table_phys| {
         const table: *SDTHeader = @ptrFromInt(arch.physicalToVirtual(table_phys));
         if (std.mem.eql(u8, &table.signature, "APIC")) {
@@ -126,11 +128,11 @@ pub fn init() AcpiError!void {
 /// Walk the madt and put entries in a more convenient format to work with
 pub fn parseMADT(al: std.mem.Allocator) ![]*MADTEHeader {
     // Start at eight to skip the madt header
-    const madt_data: []u8 = madt.?.GetData(u8)[8..];
+    const madt_data: []u8 = madt.?.getData(u8)[8..];
     var retval = try std.ArrayList(*MADTEHeader).initCapacity(al, 30);
     var num: u8 = 0;
     var i: usize = 0;
-    while (i < madt.?.length and i < 30) {
+    while (i < madt_data.len and num < 30) {
         const curr_entry: *MADTEHeader = @ptrCast(@alignCast(&madt_data[i]));
         try retval.append(al, curr_entry);
         num += 1;

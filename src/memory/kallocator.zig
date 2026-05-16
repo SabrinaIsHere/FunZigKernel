@@ -3,6 +3,7 @@
 //! This also really should not be used for anything that isn't a semipermanent structure, it WILL cause fragmentation
 //! NOTE: Just write the fucking slab allocator if this is gonna take so much time
 //! TODO: Slab allocation
+//! TODO: Integrate with zig allocators
 
 const main = @import("../main.zig");
 const Console = main.Console;
@@ -112,7 +113,10 @@ pub fn get(obj: type, num: usize, alignment: usize) MemError![*]obj {
             num_entries += 1;
         }
         const retval: [*]obj = @ptrFromInt(ret_base);
-        @memset(retval[0..num], .{});
+        switch (obj) {
+            u8 => @memset(retval[0..num], 0),
+            else => @memset(retval[0..num], .{}),
+        }
         return retval;
     }
     return MemError.NoMemoryAvailable;

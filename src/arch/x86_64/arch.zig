@@ -1,18 +1,20 @@
 //! Got this from https://github.com/ZystemOS/pluto/blob/develop/src/kernel/arch/x86/arch.zig
 //! TODO: Translate machine code in memory to assembly for debugging purposes. For now gdb is fine
 
-const limine = @import("limine");
-const GDT = @import("GDT.zig");
-const IDT = @import("IDT.zig");
-const ISR = @import("ISR.zig");
+// This is mostly so I don't have to remember file paths
+const std = @import("std");
+pub const limine = @import("limine");
+pub const GDT = @import("GDT.zig");
+pub const IDT = @import("IDT.zig");
+pub const ISR = @import("ISR.zig");
 pub const interrupts = @import("interrupts.zig");
-const Cpuid = @import("cpuid.zig");
-const Apic = @import("apic.zig");
-const IO = @import("../../io/io.zig");
-const Paging = @import("paging.zig");
+pub const Cpuid = @import("cpuid.zig");
+pub const APIC = @import("apic.zig");
+pub const IO = @import("../../io/io.zig");
+pub const Paging = @import("paging.zig");
 pub const main = @import("../../main.zig");
-const kallocator = @import("../../memory/kallocator.zig");
-const acpi = @import("ACPI.zig");
+pub const kallocator = @import("../../memory/kallocator.zig");
+pub const ACPI = @import("ACPI.zig");
 pub const Drivers = @import("drivers/drivers.zig");
 pub const Console = IO.Console;
 
@@ -94,6 +96,8 @@ var k_phys_base: usize = 0;
 /// Vritual base in memory of the kernel
 var k_virt_base: usize = 0;
 
+pub const al: std.mem.Allocator = undefined;
+
 pub extern fn reloadSegments() void;
 
 /// Initializes architecture specific things like the GDT and IDT
@@ -108,7 +112,8 @@ pub fn init() void {
     Cpuid.init();
     ISR.init();
     Paging.init();
-    acpi.init() catch @panic("ACPI error");
+    ACPI.init() catch @panic("ACPI error");
+    APIC.init();
 }
 
 /// Wrapper for the x86 assembly instruction 'inb'

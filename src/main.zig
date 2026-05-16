@@ -27,6 +27,8 @@ pub const panic = Panic.panic;
 pub const std_options: std.Options = .{
     .page_size_max = 4096,
 };
+/// Kernel's allocator
+pub var al: ?std.mem.Allocator = null;
 
 // We use noinline to make sure it don't get inlined by compiler
 // Linked to kmain because I need a predetermined address to long jump to
@@ -38,6 +40,9 @@ export fn kmain() linksection(".kmain") callconv(.c) noreturn {
     arch.initHhdm();
     // Initialize the ultra basic memory allocator
     KAllocator.init();
+    const buffer: *[4096]u8 = @ptrCast(@alignCast(KAllocator.get(u8, 4096, 4096) catch @panic("Can't get al memory")));
+    var fba = std.heap.FixedBufferAllocator.init(buffer);
+    al = fba.allocator();
     // Initialize architecture stuff
     arch.init();
     while (true) {
