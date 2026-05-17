@@ -1,7 +1,7 @@
 //! Basic early memory allocator for the kernel, for now. I plan to implement slab allocation later but for now it's
 //! basically just intended to serve paging
 //! This also really should not be used for anything that isn't a semipermanent structure, it WILL cause fragmentation
-//! NOTE: Just write the fucking slab allocator if this is gonna take so much time
+//! NOTE: If I ever make another pass at this without writing the slab allocator it would benefit from an ArrayList
 //! TODO: Slab allocation
 //! TODO: Integrate with zig allocators
 
