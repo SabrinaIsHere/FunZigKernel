@@ -64,10 +64,11 @@ pub fn isrSelect(ctx: *CTX) callconv(.c) void {
 
 /// Registers appropriate functions as handlers
 pub fn init() void {
-    // TODO: IRQs
     handlers[@intFromEnum(ErrorVectors.GeneralProtection)] = handleGP;
     handlers[@intFromEnum(ErrorVectors.PageFault)] = handlePF;
     handlers[@intFromEnum(ErrorVectors.InvalidOpcode)] = handleUD;
+    // TODO: enum
+    handlers[0x20] = handleTimer;
 }
 
 /// Register a function to handle an interrupt
@@ -100,4 +101,9 @@ fn handlePF(ctx: *CTX) void {
     );
     ctx.print();
     arch.wait();
+}
+
+fn handleTimer(ctx: *CTX) void {
+    _ = ctx;
+    Console.print("Timer received\n", .{});
 }

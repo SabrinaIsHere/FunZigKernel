@@ -113,7 +113,7 @@ export fn isrCommon() callconv(.naked) void {
         \\popq %%rsi
         \\popq %%rdi
         \\add $0x10, %%rsp
-        \\iret
+        \\iretq
     );
 }
 

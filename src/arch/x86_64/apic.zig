@@ -49,6 +49,27 @@ const DeliveryMode = enum(u3) {
     external,
 };
 
+/// Local apic
+/// I could have implemented this with a packed struct but that would have really big and ugly to look at
+const LApic = struct {
+    /// Where the magic happens
+    addr: [*]volatile u32,
+
+    /// Translate a reg index to an index into addr
+    fn translate(reg: usize) u16 {
+        return @truncate((reg & 0xFFFF) << 2);
+    }
+    /// Gets a value from the register, which is translated to appropriate 16-byte aligned address
+    pub fn get(self: *LApic, reg: usize) u32 {
+        // Everything is 16 byte aligned and we're addressing in u32s so this is funky, watch for errors
+        return self.addr[translate(reg)];
+    }
+    /// Set a register to a value
+    pub fn set(self: *LApic, reg: usize, val: u32) void {
+        self.addr[translate(reg)] = val;
+    }
+};
+
 /// Used for programming the IOApic
 const RedirectionEntry = packed struct(u64) {
     vector: u8,
@@ -149,8 +170,11 @@ const Override = struct {
     new: u8,
 };
 
+/// There's only ever one lapic
+var lapic: LApic = undefined;
 /// List of ioapics gathered from the MADT. Defined in init()
 var io_apics: []IOApic = undefined;
+/// List of overrides from the MADT
 var overrides: []Override = undefined;
 
 /// Initialize the APIC(s)
@@ -166,7 +190,7 @@ pub fn init() void {
     var tmp_io_apics = std.ArrayList(IOApic).initCapacity(al, 10) catch @panic("apic.init(): out of memory");
     for (madt) |madte| {
         const madte_data = madte.getData(u8);
-        print("{any}\n", .{madte});
+        //print("{any}\n", .{madte});
         switch (madte.type) {
             .io_apic => {
                 const addr: u32 = @bitCast(madte_data[2..6].*);
@@ -182,16 +206,32 @@ pub fn init() void {
             },
             // NOTE: Limine interacts with the interrupt controllers so I'll get around to parsing this if it seems necessary
             .io_apic_int_src_override => {
-                print("Override: {any}\n", .{madte_data});
+                //print("Override: {any}\n", .{madte_data});
             },
             else => {},
         }
     }
     io_apics = tmp_io_apics.items;
-    print("{any}\n", .{io_apics});
+    //print("{any}\n", .{io_apics});
     // BUG: APIC read/write may not be doing anything
     io_apics[0].maskRange(false, 0, 12) catch unreachable;
-    print("{any}\n", .{io_apics[0].getRedirectionEntries(al) catch unreachable});
+    //print("{any}\n", .{io_apics[0].getRedirectionEntries(al) catch unreachable});
+    // Dealing with the local apic
+    enableAPIC();
+}
+
+pub fn enableAPIC() void {
+    // TODO: Parse MSRs to ensure apic hasn't been disabled
+    defer print("APICs enabled\n", .{});
+    Paging.map(0xFEE00000, arch.physicalToVirtual(0xFEE00000));
+    lapic = .{ .addr = @ptrFromInt(arch.physicalToVirtual(0xFEE00000)) };
+    print("LApic: {any}: 0b{b}\n", .{ lapic.get(0x2), lapic.get(0xF) });
+    print("LApic: {any}: 0b{b}\n", .{ lapic.get(0x2), lapic.get(0x32) });
+    lapic.set(0xF, 0x1FF);
+    lapic.set(0x8, 0x0);
+    lapic.set(0x3E, 0x0);
+    lapic.set(0x32, lapic.get(0x32) & ~@as(u32, 1 << 16));
+    setTimer(0x0FFFFFFF, 0x1, false);
 }
 
 /// This isn't making sense to me so I'm gonna deal with it later
@@ -207,3 +247,15 @@ pub fn setIRQ(vector: u32, entry: RedirectionEntry) void {
         }
     }
 }
+
+/// Starts a timer interrupt
+/// This is more of an internal wrapper over the hardware details, mostly a timer function dealing in seconds will be used
+/// TODO: CPUID.15H gives clock speed necessary to translate this into seconds
+pub fn setTimer(count: u32, divide: u3, periodic: bool) void {
+    lapic.set(0x32, lapic.get(0x32) & ~@as(u32, if (periodic) 1 << 17 else 0));
+    // Stupid reserved zero in the middle of the number
+    lapic.set(0x3E, (divide & 0b11) | ((divide & 0b100) << 1));
+    lapic.set(0x38, count);
+}
+
+//pub fn setTimer(ms: usize, comptime callback: fn () void) void {}
