@@ -1,6 +1,7 @@
 const arch = @import("arch.zig");
 const Console = arch.Console;
 const Isr = @import("ISR.zig");
+const APIC = arch.APIC;
 pub const CTX = Isr.CTX;
 
 pub const ErrorVectors = enum(u16) {
@@ -64,6 +65,7 @@ pub fn isrSelect(ctx: *CTX) callconv(.c) void {
 
 /// Registers appropriate functions as handlers
 pub fn init() void {
+    for (0..256) |i| handlers[i] = isrStub;
     handlers[@intFromEnum(ErrorVectors.GeneralProtection)] = handleGP;
     handlers[@intFromEnum(ErrorVectors.PageFault)] = handlePF;
     handlers[@intFromEnum(ErrorVectors.InvalidOpcode)] = handleUD;
@@ -81,7 +83,6 @@ pub fn register(func: Handler, vector: u16) void {
 fn handleUD(ctx: *CTX) void {
     Console.print("Invalid opcode fault\n", .{});
     ctx.print();
-    //ctx.eip += 4;
     arch.wait();
 }
 
@@ -106,4 +107,6 @@ fn handlePF(ctx: *CTX) void {
 fn handleTimer(ctx: *CTX) void {
     _ = ctx;
     Console.print("Timer received\n", .{});
+    //APIC.setTimer(0xFFFFFFFF, 0x0, false);
+    APIC.sendEOI();
 }

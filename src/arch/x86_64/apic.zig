@@ -93,6 +93,7 @@ const RedirectionEntry = packed struct(u64) {
 /// Encapsulates interactions with a specific ioapic
 /// NOTE: This is also doable with a packed struct but I'd need a lot of offset bc of how high the data register is,
 /// plus I want to store other data about the ioapic in this struct
+/// NOTE: Check 'info pic' to validate if things are being unmasked
 const IOApic = struct {
     /// IOApic's id
     id: u8,
@@ -221,17 +222,15 @@ pub fn init() void {
 }
 
 pub fn enableAPIC() void {
-    // TODO: Parse MSRs to ensure apic hasn't been disabled
-    defer print("APICs enabled\n", .{});
     Paging.map(0xFEE00000, arch.physicalToVirtual(0xFEE00000));
     lapic = .{ .addr = @ptrFromInt(arch.physicalToVirtual(0xFEE00000)) };
-    print("LApic: {any}: 0b{b}\n", .{ lapic.get(0x2), lapic.get(0xF) });
-    print("LApic: {any}: 0b{b}\n", .{ lapic.get(0x2), lapic.get(0x32) });
+    // Set vector and enable
     lapic.set(0xF, 0x1FF);
     lapic.set(0x8, 0x0);
     lapic.set(0x3E, 0x0);
+    // Unmask timer lvt
     lapic.set(0x32, lapic.get(0x32) & ~@as(u32, 1 << 16));
-    setTimer(0x0FFFFFFF, 0x1, false);
+    setTimer(0x0FFFFFFF, 0x0, true);
 }
 
 /// This isn't making sense to me so I'm gonna deal with it later
@@ -252,10 +251,16 @@ pub fn setIRQ(vector: u32, entry: RedirectionEntry) void {
 /// This is more of an internal wrapper over the hardware details, mostly a timer function dealing in seconds will be used
 /// TODO: CPUID.15H gives clock speed necessary to translate this into seconds
 pub fn setTimer(count: u32, divide: u3, periodic: bool) void {
-    lapic.set(0x32, lapic.get(0x32) & ~@as(u32, if (periodic) 1 << 17 else 0));
+    // NOTE: Not 100% sure that I'm setting the right bit
+    lapic.set(0x32, if (periodic) lapic.get(0x32) | (1 << 17) else lapic.get(0x32) & ~@as(u32, 1 << 17));
     // Stupid reserved zero in the middle of the number
-    lapic.set(0x3E, (divide & 0b11) | ((divide & 0b100) << 1));
+    lapic.set(0x3E, (lapic.get(0x3E) & 0xFFFFFFF0) | (divide & 0b11) | ((divide & 0b100) << 1));
     lapic.set(0x38, count);
+}
+
+/// Called at the end of an interrupt to signal the lapic that it can send another
+pub fn sendEOI() void {
+    lapic.set(0xB, 0);
 }
 
 //pub fn setTimer(ms: usize, comptime callback: fn () void) void {}
