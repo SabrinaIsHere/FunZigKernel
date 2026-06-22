@@ -1,5 +1,6 @@
 //! https://wiki.osdev.org/MADT
 //! https://uefi.org/specs/ACPI/6.5/05_ACPI_Software_Programming_Model.html#multiple-apic-description-table-madt
+//! This file is kind of a mess but if it ever needs fixing up I will, until then it seems like a waste of time
 //! TODO: This file should be APIC.zig, or everything should be lowercase
 //! TODO: Remap IRQs
 
@@ -94,11 +95,15 @@ const RedirectionEntry = packed struct(u64) {
 /// NOTE: This is also doable with a packed struct but I'd need a lot of offset bc of how high the data register is,
 /// plus I want to store other data about the ioapic in this struct
 /// NOTE: Check 'info pic' to validate if things are being unmasked
+/// BUG: regsel isn't doing anything
+/// Possible the memory reference is being optimized out or something?
 const IOApic = struct {
     /// IOApic's id
     id: u8,
-    /// Address of this ioapic
-    addr: [*]volatile u32,
+    /// Regselect register
+    regsel: *volatile u32,
+    /// Register window register (where data is written)
+    regwin: *volatile u32,
     /// Global interrupt base
     int_base: u32,
     /// How many IRQs can this handle
@@ -109,24 +114,26 @@ const IOApic = struct {
     pub fn init(id: u8, addr: usize, int_base: u32) IOApic {
         var self = IOApic{
             .id = id,
-            .addr = @ptrFromInt(addr),
+            .regsel = @ptrFromInt(addr),
+            .regwin = @ptrFromInt(addr + 0x10),
             .int_base = int_base,
         };
         // Encoded in bits 16-23
-        self.max_redirection_entries = @truncate(self.read(1) >> 16);
+        self.max_redirection_entries = @as(u8, @truncate(self.read(1) >> 16)) + 1;
+        print("Redirection entries: {any}\n", .{self.max_redirection_entries});
         return self;
     }
 
     /// Read from a register
     pub fn read(self: *IOApic, reg: u32) u32 {
-        self.addr[0] = (reg & 0xFF);
-        return self.addr[4];
+        self.regsel.* = (reg & 0xFF);
+        return self.regwin.*;
     }
 
     /// Write to a register
     pub fn write(self: *IOApic, reg: u32, val: u32) void {
-        self.addr[0] = (reg & 0xFF);
-        self.addr[4] = val;
+        self.regsel.* = (reg & 0xFF);
+        self.regwin.* = val;
     }
 
     /// Dumps all the redirection entries into a list
@@ -134,25 +141,27 @@ const IOApic = struct {
         var list = try std.ArrayList(RedirectionEntry).initCapacity(al, self.max_redirection_entries);
         var i: u32 = 0;
         while (i < self.max_redirection_entries) {
-            const high_val: u64 = self.read(@truncate(0x10 + i));
-            const low_val: u64 = self.read(@truncate(0x11 + i));
+            const high_val: u64 = self.read(@truncate(0x11 + i));
+            const low_val: u64 = self.read(@truncate(0x10 + i));
             try list.append(al, @bitCast(high_val << 32 | low_val));
             i += 2;
         }
         return list.items;
     }
 
-    /// Set a redirection entry. Index is the index into the entries, not memory
+    /// Set a redirection entry. Index is the index into the entries, not memory. Out of 24
     pub fn setRedirectionEntry(self: *IOApic, index: u32, entry: RedirectionEntry) APICError!void {
         if (index > self.max_redirection_entries) return APICError.InvalidIndex;
-        self.write(0x10 + index, @truncate(@as(u64, @bitCast(entry)) >> 32));
-        self.write(0x11 + index, @truncate(@as(u64, @bitCast(entry))));
+        // NOTE: Could be wrong order
+        self.write(0x10 + (index * 2), @truncate(@as(u64, @bitCast(entry))));
+        self.write(0x11 + (index * 2), @truncate(@as(u64, @bitCast(entry)) >> 32));
     }
 
     /// Mask or unmask an IRQ
+    /// Index of the irq, not the underlying memory. Out of 24
     pub fn maskIRQ(self: *IOApic, masked: bool, index: u32) APICError!void {
-        const entry_high: u64 = self.read(@truncate(0x10 + index));
-        const entry_low: u64 = self.read(@truncate(0x11 + index));
+        const entry_high: u64 = self.read(@truncate(0x10 + (index * 2)));
+        const entry_low: u64 = self.read(@truncate(0x11 + (index * 2)));
         var entry: RedirectionEntry = @bitCast(entry_high << 32 | entry_low);
         entry.int_mask = masked;
         try self.setRedirectionEntry(index, entry);
@@ -180,7 +189,6 @@ var overrides: []Override = undefined;
 
 /// Initialize the APIC(s)
 pub fn init() void {
-    // TODO: Sanity check that lapic is configure how I expect
     defer print("APICs configured\n", .{});
     // Get data, error checking
     const al = main.al orelse @panic("apic.init() called before al is initialized");
@@ -215,22 +223,30 @@ pub fn init() void {
     io_apics = tmp_io_apics.items;
     //print("{any}\n", .{io_apics});
     // BUG: APIC read/write may not be doing anything
-    io_apics[0].maskRange(false, 0, 12) catch unreachable;
+    io_apics[0].maskRange(true, 0, 24) catch unreachable;
+    //io_apics[0].maskIRQ(false, 1) catch unreachable;
+    io_apics[0].setRedirectionEntry(1, @bitCast(@as(u64, 0x21))) catch unreachable;
     //print("{any}\n", .{io_apics[0].getRedirectionEntries(al) catch unreachable});
     // Dealing with the local apic
-    enableAPIC();
+    enableLAPIC();
 }
 
-pub fn enableAPIC() void {
+var clock_frequency: u32 = 0;
+
+pub fn enableLAPIC() void {
     Paging.map(0xFEE00000, arch.physicalToVirtual(0xFEE00000));
     lapic = .{ .addr = @ptrFromInt(arch.physicalToVirtual(0xFEE00000)) };
     // Set vector and enable
     lapic.set(0xF, 0x1FF);
     lapic.set(0x8, 0x0);
     lapic.set(0x3E, 0x0);
-    // Unmask timer lvt
-    lapic.set(0x32, lapic.get(0x32) & ~@as(u32, 1 << 16));
-    setTimer(0x0FFFFFFF, 0x0, true);
+    print("LAPIC ID: 0x{X}\n", .{lapic.get(0x20)});
+    //clock_frequency = Cpuid.cpuid(0x15).ecx;
+    //setTimer(500, timer_callback);
+}
+
+fn timer_callback() void {
+    print("timer callback\n", .{});
 }
 
 /// This isn't making sense to me so I'm gonna deal with it later
@@ -249,13 +265,14 @@ pub fn setIRQ(vector: u32, entry: RedirectionEntry) void {
 
 /// Starts a timer interrupt
 /// This is more of an internal wrapper over the hardware details, mostly a timer function dealing in seconds will be used
-/// TODO: CPUID.15H gives clock speed necessary to translate this into seconds
-pub fn setTimer(count: u32, divide: u3, periodic: bool) void {
-    // NOTE: Not 100% sure that I'm setting the right bit
+/// TODO: CPUID.15H gives clock speed necessary to translate this into seconds. This doesn't work in qemu
+fn setLowlevelTimer(count: u32, divide: u3, periodic: bool) void {
     lapic.set(0x32, if (periodic) lapic.get(0x32) | (1 << 17) else lapic.get(0x32) & ~@as(u32, 1 << 17));
     // Stupid reserved zero in the middle of the number
     lapic.set(0x3E, (lapic.get(0x3E) & 0xFFFFFFF0) | (divide & 0b11) | ((divide & 0b100) << 1));
     lapic.set(0x38, count);
+    // Unmask timer lvt
+    lapic.set(0x32, lapic.get(0x32) & ~@as(u32, 1 << 16));
 }
 
 /// Called at the end of an interrupt to signal the lapic that it can send another
@@ -263,4 +280,14 @@ pub fn sendEOI() void {
     lapic.set(0xB, 0);
 }
 
-//pub fn setTimer(ms: usize, comptime callback: fn () void) void {}
+pub var curr_callback: ?*const fn () void = null;
+
+/// Higher level function to set a timer with a callback and approachable timescale
+/// TODO: Periodic, ms might not be right for all applications
+/// TODO: Idk how to get the clock speed so I'll figure this out if I ever actually need to
+pub fn setTimer(ticks: usize, comptime callback: fn () void) void {
+    if (clock_frequency == 0) @panic("setTimer: invalid clock frequency");
+    curr_callback = callback;
+    //setLowlevelTimer((clock_frequency / 1000) * @as(u32, @truncate(ms)), 0x7, false);
+    setLowlevelTimer(@truncate(ticks), 0x7, false);
+}

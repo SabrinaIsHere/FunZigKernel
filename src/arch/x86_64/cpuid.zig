@@ -103,7 +103,7 @@ var max_leaf: u32 = 0;
 pub var vendor_string: [12]u8 = [_]u8{ 'n', 'o', 't', ' ', 'k', 'n', 'o', 'w', 'n', '.', ' ', ' ' };
 
 /// Thin cpuid wrapper, wrapped in other functions to further abstract this gnarly ass assembly lol
-fn cpuid(code: u32) Regs {
+pub fn cpuid(code: u32) Regs {
     // Handle invalid codes
     if (!(max_leaf == 0 and code == 0) and code > max_leaf) {
         Console.print("cpuid: Code '{any}' is out of bounds for this processor\n", .{code});

@@ -1,5 +1,6 @@
 const arch = @import("arch.zig");
 const Console = arch.Console;
+const print = Console.print;
 const Isr = @import("ISR.zig");
 const APIC = arch.APIC;
 pub const CTX = Isr.CTX;
@@ -71,6 +72,7 @@ pub fn init() void {
     handlers[@intFromEnum(ErrorVectors.InvalidOpcode)] = handleUD;
     // TODO: enum
     handlers[0x20] = handleTimer;
+    handlers[0x21] = handleKeyboard;
 }
 
 /// Register a function to handle an interrupt
@@ -108,5 +110,19 @@ fn handleTimer(ctx: *CTX) void {
     _ = ctx;
     Console.print("Timer received\n", .{});
     //APIC.setTimer(0xFFFFFFFF, 0x0, false);
+    if (APIC.curr_callback) |callback| {
+        callback();
+        APIC.curr_callback = null;
+    }
+    APIC.sendEOI();
+}
+
+/// Temporary function to verify keybaord interrupts before the driver gets written
+/// TODO: Remove
+/// BUG: After the first interrupt I'm not getting more, this is probably the driver
+/// needing to signal the device that the interrupt is handled
+fn handleKeyboard(ctx: *CTX) void {
+    _ = ctx;
+    print("Keyboard interrupt received\n", .{});
     APIC.sendEOI();
 }
