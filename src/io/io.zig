@@ -18,7 +18,7 @@ pub const Console = struct {
     /// Initializes keyboard
     pub fn initInput() void {
         PS2Keyboard.init();
-        // TODO: PS2Keyboard.registerHandler(registerKeypress);
+        PS2Keyboard.registerHandler(scancodeHandler);
     }
     // Clears video, doesn't clear serial since logs need to be maintained
     pub fn clear() void {
@@ -29,9 +29,19 @@ pub const Console = struct {
         Serial.print(fmt, args);
         VideoConsole.print(fmt, args);
     }
-    /// Called by drivers handling data input
+    /// Unified interface called by drivers handling data input
     pub fn registerKeypress(c: u8) void {
         // TODO: Command logic
-        print("{any}", .{c});
+        // There's gonna have to be like buffering and maybe a new file to handle all that
+        // NOTE: \n = enter
+        print("{c}", .{c});
+    }
+    /// Called by the keyboard driver
+    pub fn scancodeHandler(code: PS2Keyboard.Scancode) void {
+        // The one liners here are maybe ill advised but whatever. I wish I knew of a better way to do this
+        switch (code) {
+            .reg => if (code.reg.released) if (PS2Keyboard.scancodeToAscii(code)) |c| registerKeypress(c),
+            .ex => if (code.ex.released) if (PS2Keyboard.scancodeToAscii(code)) |c| registerKeypress(c),
+        }
     }
 };
