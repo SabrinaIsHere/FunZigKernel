@@ -221,12 +221,9 @@ pub fn init() void {
         }
     }
     io_apics = tmp_io_apics.items;
-    //print("{any}\n", .{io_apics});
-    // BUG: APIC read/write may not be doing anything
     io_apics[0].maskRange(true, 0, 24) catch unreachable;
     //io_apics[0].maskIRQ(false, 1) catch unreachable;
     io_apics[0].setRedirectionEntry(1, @bitCast(@as(u64, 0x21))) catch unreachable;
-    //print("{any}\n", .{io_apics[0].getRedirectionEntries(al) catch unreachable});
     // Dealing with the local apic
     enableLAPIC();
 }
@@ -240,7 +237,6 @@ pub fn enableLAPIC() void {
     lapic.set(0xF, 0x1FF);
     lapic.set(0x8, 0x0);
     lapic.set(0x3E, 0x0);
-    print("LAPIC ID: 0x{X}\n", .{lapic.get(0x20)});
     //clock_frequency = Cpuid.cpuid(0x15).ecx;
     //setTimer(500, timer_callback);
 }

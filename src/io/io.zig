@@ -4,6 +4,7 @@ pub const arch = @import("../arch/arch.zig").arch;
 const Drivers = arch.Drivers;
 const Serial = Drivers.Serial;
 const Framebuffer = Drivers.Framebuffer;
+const PS2Keyboard = Drivers.PS2Keyboard;
 const Font = @import("../misc/font.zig");
 const VideoConsole = @import("video_console.zig");
 
@@ -13,6 +14,11 @@ pub const Console = struct {
     pub fn init() void {
         Serial.init() catch arch.k_panic("Serial unable to initialize.");
         VideoConsole.init();
+    }
+    /// Initializes keyboard
+    pub fn initInput() void {
+        PS2Keyboard.init();
+        // TODO: PS2Keyboard.registerHandler(registerKeypress);
     }
     // Clears video, doesn't clear serial since logs need to be maintained
     pub fn clear() void {

@@ -72,7 +72,6 @@ pub fn init() void {
     handlers[@intFromEnum(ErrorVectors.InvalidOpcode)] = handleUD;
     // TODO: enum
     handlers[0x20] = handleTimer;
-    handlers[0x21] = handleKeyboard;
 }
 
 /// Register a function to handle an interrupt
@@ -114,15 +113,5 @@ fn handleTimer(ctx: *CTX) void {
         callback();
         APIC.curr_callback = null;
     }
-    APIC.sendEOI();
-}
-
-/// Temporary function to verify keybaord interrupts before the driver gets written
-/// TODO: Remove
-/// BUG: After the first interrupt I'm not getting more, this is probably the driver
-/// needing to signal the device that the interrupt is handled
-fn handleKeyboard(ctx: *CTX) void {
-    _ = ctx;
-    print("Keyboard interrupt received\n", .{});
     APIC.sendEOI();
 }

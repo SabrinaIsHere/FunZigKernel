@@ -39,6 +39,7 @@ pub fn clear() void {
 fn incrementY() void {
     if (y + 1 >= max_y) {
         // BUG: Watch out for this being wrong
+        // BUG: It very much is
         Framebuffer.shiftUp(0, @bitCast((y * letter_quantum) - 1)) catch @panic("Framebuffer coordinate error");
         y -= 1;
         x -= 1;

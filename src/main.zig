@@ -45,8 +45,6 @@ export fn kmain() linksection(".kmain") callconv(.c) noreturn {
     al = fba.allocator();
     // Initialize architecture stuff
     arch.init();
-    //while (true) {
-    //    asm volatile ("hlt");
-    //}
+    Console.initInput();
     arch.wait();
 }
