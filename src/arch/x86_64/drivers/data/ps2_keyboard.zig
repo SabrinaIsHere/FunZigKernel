@@ -94,7 +94,6 @@ const PS2Keyboard = struct {
             self.scancodeTranslation = true;
         }
         // Is this driver compatible
-        print("{any}\n", .{self});
         if (self.scancodeSet != .set1) @panic("PS2 Keyboard invalid");
     }
 
@@ -139,6 +138,8 @@ pub fn registerHandler(handler: Handler) void {
     numHandlers += 1;
 }
 
+var shiftActive: bool = false;
+
 /// Runs other handlers
 pub fn interruptHandler(ctx: *interrupts.CTX) void {
     _ = ctx;
@@ -146,6 +147,12 @@ pub fn interruptHandler(ctx: *interrupts.CTX) void {
         //print("Scancode: {any}\n", .{code});
         //if (scancodeToAscii(code)) |c| print("{c}\n", .{c});
         // Call registered high level handlers
+        switch (code) {
+            .reg => |reg_code| if (reg_code.char == .l_shift or reg_code.char == .r_shift) {
+                shiftActive = !reg_code.released;
+            },
+            .ex => {},
+        }
         for (0..numHandlers) |i| if (handlers[i]) |handler| handler(code);
     }
     APIC.sendEOI();
@@ -160,10 +167,12 @@ pub fn dummyHandler(ctx: *interrupts.CTX) void {
 /// Get the ascii character associated with a scancode. Will be null if no character is associated (i.e. left control)
 /// enter = \n
 pub fn scancodeToAscii(code: Scancode) ?u8 {
-    return switch (code) {
+    const char = switch (code) {
         .reg => |reg_code| regScancodeToAscii(reg_code),
         .ex => |ex_code| exScancodeToAscii(ex_code),
     };
+    if (char) |c| if (shiftActive) return asciiToUppercase(c);
+    return char;
 }
 
 fn regScancodeToAscii(code: RegularScancode) ?u8 {
@@ -240,5 +249,35 @@ fn exScancodeToAscii(code: ExtendedScancode) ?u8 {
         .keypad_enter => '\n',
         .keypad_slash => '/',
         else => null,
+    };
+}
+
+/// Handles special characters as well as standard
+/// NOTE: In the future a more modular layout system will need to be in place
+fn asciiToUppercase(c: u8) u8 {
+    return switch (c) {
+        '0' => ')',
+        '1' => '!',
+        '2' => '@',
+        '3' => '#',
+        '4' => '$',
+        '5' => '%',
+        '6' => '^',
+        '7' => '&',
+        '8' => '*',
+        '9' => '(',
+        'a'...'z' => c - 0x20,
+        ';' => ':',
+        '\'' => '\"',
+        ',' => '<',
+        '.' => '>',
+        '/' => '?',
+        '[' => '{',
+        ']' => '}',
+        '\\' => '|',
+        '-' => '_',
+        '=' => '+',
+        '`' => '~',
+        else => c,
     };
 }

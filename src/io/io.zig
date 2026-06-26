@@ -7,6 +7,7 @@ const Framebuffer = Drivers.Framebuffer;
 const PS2Keyboard = Drivers.PS2Keyboard;
 const Font = @import("../misc/font.zig");
 const VideoConsole = @import("video_console.zig");
+const Terminal = @import("../terminal.zig");
 
 /// Standard interface exposing console IO
 pub const Console = struct {
@@ -19,6 +20,7 @@ pub const Console = struct {
     pub fn initInput() void {
         PS2Keyboard.init();
         PS2Keyboard.registerHandler(scancodeHandler);
+        Terminal.init();
     }
     // Clears video, doesn't clear serial since logs need to be maintained
     pub fn clear() void {
@@ -35,6 +37,7 @@ pub const Console = struct {
         // There's gonna have to be like buffering and maybe a new file to handle all that
         // NOTE: \n = enter
         print("{c}", .{c});
+        Terminal.registerChar(c);
     }
     /// Called by the keyboard driver
     pub fn scancodeHandler(code: PS2Keyboard.Scancode) void {

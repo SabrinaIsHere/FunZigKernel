@@ -3,6 +3,9 @@
 //! All code related to video rendering was written without example code which I personally am proud of
 //! TODO: Cursor
 //! TODO: Colors (gonna need some funky underlying struct to deal with bpp nonsense)
+//! TODO: Backspace
+//! TODO: Delete
+//! TODO: Tab
 
 const std = @import("std");
 const IO = @import("io.zig");
