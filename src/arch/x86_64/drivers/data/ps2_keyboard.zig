@@ -189,6 +189,7 @@ fn regScancodeToAscii(code: RegularScancode) ?u8 {
         .zero => '0',
         .minus => '-',
         .eq => '=',
+        .tab => '\t',
         .q => 'q',
         .w => 'w',
         .e => 'e',

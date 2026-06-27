@@ -6,6 +6,7 @@
 const arch = @import("../../arch.zig");
 const main = @import("../../../../main.zig");
 const limine = @import("limine");
+const terminal = main.terminal;
 
 /// Errors related to the video driver
 const VideoError = error{
@@ -55,14 +56,21 @@ inline fn getPixelIndex(x: u64, y: u64) u64 {
 }
 
 /// Get the value of the pixel at given coordinates
-pub fn getPixel(x: u64, y: u64) u64 {
-    return framebuffer_addr[getPixelIndex(x, y)];
+pub fn getPixel(x: u64, y: u64) VideoError!u64 {
+    var retval: u64 = 0;
+    if (x > width or y > height) return VideoError.InvalidCoordinates;
+    for (0..pixel_width) |i| {
+        // NOTE: This might be reversing the pixel
+        retval |= @as(u64, framebuffer_addr[getPixelIndex(x, y) + i]) << @intCast(i * 8);
+    }
+    return retval;
+    //return framebuffer_addr[getPixelIndex(x, y)];
 }
 
 /// This may be iterated on. Takes coordinates and sets the pixel at those coordinates to a
 /// truncated value depending on bpp
-pub fn setPixel(x: u64, y: u64, value: u64) void {
-    if (x > width or y > height) return; // This probably shouldn't quiet fail but whatever this is easier
+pub fn setPixel(x: u64, y: u64, value: u64) VideoError!void {
+    if (x > width or y > height) return VideoError.InvalidCoordinates;
     for (0..pixel_width) |i| {
         // NOTE: This might be reversing the pixel
         framebuffer_addr[getPixelIndex(x, y) + i] = @truncate(value >> @intCast(i * 8));
@@ -76,7 +84,7 @@ pub fn setRange(x1: u64, x2: u64, y1: u64, y2: u64, value: u64) void {
     var y = y1;
     while (y < y2) : (y += 1) {
         var x = x1;
-        while (x < x2) : (x += 1) setPixel(x, y, value);
+        while (x < x2) : (x += 1) setPixel(x, y, value) catch unreachable;
     }
 }
 
@@ -87,19 +95,37 @@ pub fn clear() void {
 
 /// Shifts the pixels between low and high up, inclusive of low and high
 /// For both, any value less than 0 indexes from the bottom of the screen
-pub fn shiftUp(low: isize, high: isize) VideoError!void {
+/// TODO: Maybe amount is negative to shift down?
+/// BUG: Negative coordinates don't work
+pub fn shiftUp(low: isize, high: isize, amount: usize) VideoError!void {
     if (high < low) return VideoError.InvalidCoordinates;
-    const y1: usize = @bitCast(if (low < 0) @as(i64, @bitCast(height)) + low + 1 else low);
-    var y2: usize = @bitCast(if (high < 0) @as(i64, @bitCast(height)) + high + 1 else high);
+    var y1: usize = @bitCast(if (low < 0) @as(i64, @bitCast(height)) + low + 1 else low);
+    const y2: usize = @bitCast(if (high < 0) @as(i64, @bitCast(height)) + high + 1 else high);
     if (y1 > height) return VideoError.InvalidCoordinates;
     if (y2 > height) return VideoError.InvalidCoordinates;
 
+    // Don't need to clear the last line if it copies black pixels
     while (y2 > y1) {
         for (0..width) |x| setPixel(
             x,
-            y2,
-            getPixel(x, y2 + 1),
-        );
-        y2 -= 1;
+            y1,
+            getPixel(x, y1 + amount) catch unreachable,
+        ) catch unreachable;
+        y1 += 1;
     }
+}
+
+// Command stuff
+
+/// Object used by terminal.zig
+pub const cmd = terminal.Command{
+    .func = shiftUpCmd,
+    .string = "shift_up",
+    .help_text = "Shifts everything on screen up one row",
+};
+
+/// Function executed by the above command
+fn shiftUpCmd(cmd_text: *const []u8) terminal.CommandErr!void {
+    _ = cmd_text;
+    shiftUp(0, 31, 8) catch @panic("Framebuffer coordinate error");
 }

@@ -3,9 +3,7 @@
 //! All code related to video rendering was written without example code which I personally am proud of
 //! TODO: Cursor
 //! TODO: Colors (gonna need some funky underlying struct to deal with bpp nonsense)
-//! TODO: Backspace
-//! TODO: Delete
-//! TODO: Tab
+//! TODO: Delete (gonna have to wait on the cursor)
 
 const std = @import("std");
 const IO = @import("io.zig");
@@ -41,11 +39,9 @@ pub fn clear() void {
 /// Essentially a newline
 fn incrementY() void {
     if (y + 1 >= max_y) {
-        // BUG: Watch out for this being wrong
-        // BUG: It very much is
-        Framebuffer.shiftUp(0, @bitCast((y * letter_quantum) - 1)) catch @panic("Framebuffer coordinate error");
+        Framebuffer.shiftUp(0, @bitCast((y * letter_quantum) - 1), letter_quantum) catch @panic("Framebuffer coordinate error");
         y -= 1;
-        x -= 1;
+        x = 0;
     } else {
         y += 1;
         x = 0;
@@ -67,6 +63,13 @@ fn printChar(c: u8) void {
         incrementY();
         return;
     }
+    if (c == '\t') {
+        // If tab would wrap, newline and increment
+        // This may need to change it's kind of weird
+        if (x + 4 >= max_x) incrementY();
+        x += 4;
+        return;
+    }
     const bitmap = Font.getBitmap(c);
     for (bitmap, 0..) |row, row_index| {
         var col: u8 = 0;
@@ -76,10 +79,21 @@ fn printChar(c: u8) void {
                 0 => 0,
                 else => 0xFFFFFFFFFFFFFFFF, // TODO: Colors
             };
-            Framebuffer.setPixel(x * letter_quantum + col, y * letter_quantum + row_index, val);
+            Framebuffer.setPixel(x * letter_quantum + col, y * letter_quantum + row_index, val) catch unreachable;
         }
     }
     incrementX();
+}
+
+/// Called by io.zig when it detects the scancode
+pub fn backspace() void {
+    // This assumes if you're at the beginning of a line you've just run a command and can't backspace
+    // This is incorrect if you've just typed in enough to wrap but that's rare and probably not worth designing around rn
+    if (x == 0) return;
+    // Ik this is kinda hackey but whatever lol
+    x -= 1;
+    printChar(' ');
+    x -= 1;
 }
 
 /// Print a string to the console

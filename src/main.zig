@@ -12,6 +12,7 @@ const Panic = @import("panic.zig");
 pub const arch = @import("arch/arch.zig").arch;
 const KAllocator = @import("memory/kallocator.zig");
 const limine = @import("limine");
+pub const terminal = @import("terminal.zig");
 
 export var start_marker: limine.RequestsStartMarker linksection(".limine_requests_start") = .{};
 export var end_marker: limine.RequestsEndMarker linksection(".limine_requests_end") = .{};

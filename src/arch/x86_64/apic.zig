@@ -223,7 +223,10 @@ pub fn init() void {
     io_apics = tmp_io_apics.items;
     io_apics[0].maskRange(true, 0, 24) catch unreachable;
     //io_apics[0].maskIRQ(false, 1) catch unreachable;
+    // Enable keyboard interrupts
     io_apics[0].setRedirectionEntry(1, @bitCast(@as(u64, 0x21))) catch unreachable;
+    // Enable serial interrupts
+    io_apics[0].setRedirectionEntry(4, @bitCast(@as(u64, 0x21))) catch unreachable;
     // Dealing with the local apic
     enableLAPIC();
 }

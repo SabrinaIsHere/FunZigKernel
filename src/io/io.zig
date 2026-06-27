@@ -18,6 +18,7 @@ pub const Console = struct {
     }
     /// Initializes keyboard
     pub fn initInput() void {
+        defer print("> ", .{});
         PS2Keyboard.init();
         PS2Keyboard.registerHandler(scancodeHandler);
         Terminal.init();
@@ -33,17 +34,22 @@ pub const Console = struct {
     }
     /// Unified interface called by drivers handling data input
     pub fn registerKeypress(c: u8) void {
-        // TODO: Command logic
-        // There's gonna have to be like buffering and maybe a new file to handle all that
-        // NOTE: \n = enter
-        print("{c}", .{c});
+        // Full command gets printed to serial when it's entered
+        VideoConsole.print("{c}", .{c});
         Terminal.registerChar(c);
+        if (c == '\n') print("> ", .{});
     }
     /// Called by the keyboard driver
     pub fn scancodeHandler(code: PS2Keyboard.Scancode) void {
         // The one liners here are maybe ill advised but whatever. I wish I knew of a better way to do this
         switch (code) {
-            .reg => if (code.reg.released) if (PS2Keyboard.scancodeToAscii(code)) |c| registerKeypress(c),
+            .reg => if (code.reg.released) {
+                if (PS2Keyboard.scancodeToAscii(code)) |c| {
+                    registerKeypress(c);
+                } else if (code.reg.char == .backspace) {
+                    if (Terminal.backspace()) VideoConsole.backspace();
+                }
+            },
             .ex => if (code.ex.released) if (PS2Keyboard.scancodeToAscii(code)) |c| registerKeypress(c),
         }
     }
