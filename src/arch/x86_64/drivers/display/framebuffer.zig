@@ -6,7 +6,7 @@
 const arch = @import("../../arch.zig");
 const main = @import("../../../../main.zig");
 const limine = @import("limine");
-const terminal = main.terminal;
+const Terminal = main.terminal;
 
 /// Errors related to the video driver
 const VideoError = error{
@@ -117,15 +117,15 @@ pub fn shiftUp(low: isize, high: isize, amount: usize) VideoError!void {
 
 // Command stuff
 
-/// Object used by terminal.zig
-pub const cmd = terminal.Command{
-    .func = shiftUpCmd,
+/// Object used by terminal.zig to execute the shift_up command
+pub const shiftUpCmd = Terminal.Command{
+    .func = shiftUpCmdFunc,
     .string = "shift_up",
     .help_text = "Shifts everything on screen up one row",
 };
 
 /// Function executed by the above command
-fn shiftUpCmd(cmd_text: *const []u8) terminal.CommandErr!void {
+fn shiftUpCmdFunc(cmd_text: *const []u8) Terminal.CommandErr!void {
     _ = cmd_text;
     shiftUp(0, 31, 8) catch @panic("Framebuffer coordinate error");
 }

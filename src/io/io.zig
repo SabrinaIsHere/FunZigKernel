@@ -6,7 +6,7 @@ const Serial = Drivers.Serial;
 const Framebuffer = Drivers.Framebuffer;
 const PS2Keyboard = Drivers.PS2Keyboard;
 const Font = @import("../misc/font.zig");
-const VideoConsole = @import("video_console.zig");
+pub const VideoConsole = @import("video_console.zig");
 const Terminal = @import("../terminal.zig");
 
 /// Standard interface exposing console IO

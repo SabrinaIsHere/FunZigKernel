@@ -11,6 +11,7 @@ const arch = IO.arch;
 const Drivers = arch.Drivers;
 const Framebuffer = Drivers.Framebuffer;
 const Font = @import("../misc/font.zig");
+const Terminal = @import("../terminal.zig");
 
 /// Number of pixels on each side of a letter
 const letter_quantum = 8;
@@ -34,6 +35,8 @@ pub fn init() void {
 /// Clears screen
 pub fn clear() void {
     Framebuffer.clear();
+    x = 0;
+    y = 0;
 }
 
 /// Essentially a newline
@@ -165,4 +168,20 @@ pub fn writer(buffer: []u8) std.Io.Writer {
 pub fn print(comptime fmt: []const u8, args: anytype) void {
     var w = writer(&.{});
     w.print(fmt, args) catch return;
+}
+
+// Commands
+
+/// Referenced by terminal.zig to execute this command
+/// This could probably go in io.zig but there's no good reason telling me to go either way with it
+pub const clearCmd = Terminal.Command{
+    .func = clearCmdFunc,
+    .string = "clear",
+    .help_text = "Clears the screen",
+};
+
+/// Function executed by the above command
+fn clearCmdFunc(cmd_text: *const []u8) Terminal.CommandErr!void {
+    _ = cmd_text;
+    clear();
 }

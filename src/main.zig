@@ -6,7 +6,7 @@
 // to be used as training data
 
 const std = @import("std");
-const IO = @import("io/io.zig");
+pub const IO = @import("io/io.zig");
 pub const Console = IO.Console;
 const Panic = @import("panic.zig");
 pub const arch = @import("arch/arch.zig").arch;

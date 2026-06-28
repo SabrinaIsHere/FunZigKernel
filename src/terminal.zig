@@ -7,6 +7,8 @@
 const std = @import("std");
 const main = @import("main.zig");
 const arch = @import("arch/x86_64/arch.zig");
+const IO = @import("io/io.zig");
+const VideoConsole = IO.VideoConsole;
 const Serial = arch.Drivers.Serial;
 const Console = main.Console;
 const print = Console.print;
@@ -34,21 +36,18 @@ pub const Command = struct {
 /// Initially I didn't wanna do it this way bc it clogs up the import statements but whatever
 const commands = [_]Command{
     .{
-        .func = testCommandFunc,
-        .string = "test",
-        .help_text = "Basic command meant to test the console",
+        .func = echoCommandFunc,
+        .string = "echo",
+        .help_text = "Repeats back the text of the command other than the command itself",
     },
     .{
         .func = helpCommandFunc,
         .string = "help",
+        .help_text = "Prints the text you're reading right now!",
     },
-    Framebuffer.cmd,
+    VideoConsole.clearCmd,
 };
 var cmd_buffer: std.ArrayList(u8) = .empty;
-
-fn testCommandFunc(cmd_text: *const []u8) CommandErr!void {
-    print("Test: {s}\n", .{cmd_text.*});
-}
 
 pub fn init() void {
     //commands.init(main.al, 30);
@@ -86,6 +85,15 @@ pub fn checkHasCommand(cmd: Command, str: *[]u8) bool {
         if (cmd.string[i] != c) return false;
     }
     return true;
+}
+
+/// Just repreats the text of the command
+fn echoCommandFunc(cmd_text: *const []u8) CommandErr!void {
+    if (cmd_text.len == 4) {
+        print("{s}\n", .{cmd_text.*[4..]});
+    } else {
+        print("{s}\n", .{cmd_text.*[5..]});
+    }
 }
 
 /// Basic help command's function

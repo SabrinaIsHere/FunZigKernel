@@ -1,5 +1,7 @@
 //! Driver implementing polling serial for debugging purposes pre-interrupt implementation
 //! Thank god for https://wiki.osdev.org/Serial_Ports
+//!
+//! NOTE: I can't get input from the serial console so idk, I might come back to it at some point
 
 const std = @import("std");
 const native_endian = @import("builtin").target.cpu.arch.endian();
@@ -44,7 +46,6 @@ const SerialPort = struct {
 
     /// Uses DLAB bit to set the divisor register and control the transmission rate
     pub fn setBaud(self: SerialPort, divisor: u16) void {
-        // TODO: Maybe I should save and restore port + 0 and port + 1? idk
         // Set DLAB bit
         out(self.port + 3, @as(u8, 0b10000000));
         // Port + 0 = lsbyte
