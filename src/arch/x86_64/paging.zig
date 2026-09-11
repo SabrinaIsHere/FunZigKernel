@@ -97,7 +97,7 @@ pub const PML4E = packed struct(u64) {
         const ptindex: u9 = @truncate(virt_addr >> 12);
         var pdpt: *[512]PDPTE = undefined;
         if (!self.present) {
-            pdpt = @ptrCast(try kallocator.get(PDPTE, 512, 4096));
+            pdpt = @ptrCast(try kallocator.getObjects(PDPTE, 512, 4096));
             self.init(arch.virtualToPhysical(@intFromPtr(pdpt)) >> 12, true, 0, 0);
             self.us = true;
         } else {
@@ -105,7 +105,7 @@ pub const PML4E = packed struct(u64) {
         }
         var pd: *[512]PDE = undefined;
         if (!pdpt[pdptindex].present) {
-            pd = @ptrCast(try kallocator.get(PDE, 512, 4096));
+            pd = @ptrCast(try kallocator.getObjects(PDE, 512, 4096));
             pdpt[pdptindex].init(arch.virtualToPhysical(@intFromPtr(pd)) >> 12, 0, 0);
             pdpt[pdptindex].us = true;
         } else {
@@ -113,7 +113,7 @@ pub const PML4E = packed struct(u64) {
         }
         var pt: *[512]PTE = undefined;
         if (!pd[pdindex].present) {
-            pt = @ptrCast(try kallocator.get(PTE, 512, 4096));
+            pt = @ptrCast(try kallocator.getObjects(PTE, 512, 4096));
             pd[pdindex].init(arch.virtualToPhysical(@intFromPtr(pt)) >> 12, true, 0, 0);
             pd[pdindex].us = true;
         } else {
@@ -261,7 +261,7 @@ pub fn init() void {
 
 /// Allocates a new pml4 table which will allocate space for page structures as needed
 fn allocatePageTable() kallocator.MemError!*[512]PML4E {
-    return @ptrCast(try kallocator.get(PML4E, 512, 4096));
+    return @ptrCast(try kallocator.getObjects(PML4E, 512, 4096));
 }
 
 /// Allocates a new pml4 table meant for userspace which will allocate space for page structures as needed

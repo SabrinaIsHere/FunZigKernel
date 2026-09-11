@@ -41,7 +41,7 @@ export fn kmain() linksection(".kmain") callconv(.c) noreturn {
     arch.initHhdm();
     // Initialize the ultra basic memory allocator
     KAllocator.init();
-    const buffer: *[4096]u8 = @ptrCast(@alignCast(KAllocator.get(u8, 4096, 4096) catch @panic("Can't get al memory")));
+    const buffer: *[4096]u8 = @ptrCast(@alignCast(KAllocator.get(4096) catch @panic("Can't get al memory")));
     var fba = std.heap.FixedBufferAllocator.init(buffer);
     al = fba.allocator();
     // Initialize architecture stuff
